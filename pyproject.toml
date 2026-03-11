@@ -1,6 +1,17 @@
 [project]
 name = "falcon-rate-limiter"
 version = "0.1.0"
-description = "Add your description here"
+description = "A simple rate limiter for Falcon using limits library"
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "falcon>=4.0.0",
+    "limits>=3.0.0",
+    "python-dateutil>=2.9.0.post0",
+    "redis>=4.0.0",
+]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
