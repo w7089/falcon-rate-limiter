@@ -1,3 +1,4 @@
+import inspect
 from functools import wraps
 
 from dateutil.relativedelta import relativedelta
@@ -32,7 +33,7 @@ class FalconRateLimiter:
                     return
                 func(*args, **kwargs)
 
-            if asyncio.iscoroutinefunction(func):
+            if inspect.iscoroutinefunction(func):
                 pass
             else:
                 return sync_wrapper
