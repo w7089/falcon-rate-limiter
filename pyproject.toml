@@ -6,6 +6,7 @@ requires-python = ">=3.14"
 dependencies = [
     "falcon>=4.0.0",
     "limits>=3.0.0",
+    "pytest>=9.0.2",
     "python-dateutil>=2.9.0.post0",
     "redis>=4.0.0",
 ]

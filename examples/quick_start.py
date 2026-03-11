@@ -6,7 +6,7 @@ from wsgiref.simple_server import make_server
 import falcon
 from dateutil.relativedelta import relativedelta
 
-from src.limiter import FalconRateLimiter
+from limiter.core import FalconRateLimiter
 
 custom_limiter = FalconRateLimiter()
 class ThingsResource:
