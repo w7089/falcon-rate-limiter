@@ -1,26 +1,22 @@
 import pytest
 import falcon
 from dateutil.relativedelta import relativedelta
+from falcon.testing import TestClient
+
 from limiter.core import FalconRateLimiter
+from tests import test_app
+
 
 @pytest.fixture
 def limiter():
     return FalconRateLimiter()
 
 @pytest.fixture
-def falcon_app(limiter):
-    class TestResource:
-        @limiter.rate_limit(requests=2, per=relativedelta(seconds=1))
-        def on_get(self, req, resp):
-            resp.status = falcon.HTTP_200
-            resp.text = "OK"
-    app = falcon.App()
-    app.add_route("/test", TestResource())
-    return app
+def falcon_app():
+    return test_app.app
 
 @pytest.fixture
 def client(falcon_app):
-    from falcon.testing import TestClient
     return TestClient(falcon_app)
 
 def test_rate_limit_allows_requests(client):
