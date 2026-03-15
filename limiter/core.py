@@ -1,10 +1,10 @@
+import asyncio
 import inspect
 from functools import wraps
 
 from dateutil.relativedelta import relativedelta
 from limits.storage import MemoryStorage
 from limits.strategies import FixedWindowRateLimiter
-import asyncio
 import falcon
 
 from limiter.utils import _create_rate_limit_item
@@ -37,21 +37,26 @@ class FalconRateLimiter:
                 raise TypeError("Wrapped Falcon responder is missing response argument (expected self, req, resp)")
 
             @wraps(target)
-            def sync_wrapper(*args, **kwargs) -> None:
+            def sync_wrapper(*args, **kwargs) -> object | None:
                 resp = _get_response(args)
                 if not self._limiter.hit(rate_limit_item, target.__qualname__):
                     resp.status = falcon.HTTP_429
                     resp.text = "Rate limit exceeded"
-                    return
+                    return None
                 return target(*args, **kwargs)
 
             @wraps(target)
-            async def async_wrapper(*args, **kwargs) -> None:
+            async def async_wrapper(*args, **kwargs) -> object | None:
                 resp = _get_response(args)
-                if not self._limiter.hit(rate_limit_item, target.__qualname__):
+                is_allowed = await asyncio.to_thread(
+                    self._limiter.hit,
+                    rate_limit_item,
+                    target.__qualname__,
+                )
+                if not is_allowed:
                     resp.status = falcon.HTTP_429
                     resp.text = "Rate limit exceeded"
-                    return
+                    return None
                 return await target(*args, **kwargs)
 
             if inspect.iscoroutinefunction(target):
@@ -59,5 +64,4 @@ class FalconRateLimiter:
             return sync_wrapper
 
         return decorator
-
 

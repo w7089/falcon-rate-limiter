@@ -27,3 +27,24 @@ def create_app():
     app.add_route("/test", TestResource())
     app.add_route("/class-test", ClassDecoratedResource())
     return app
+
+
+def create_async_app():
+    limiter = FalconRateLimiter()
+
+    class AsyncTestResource:
+        @limiter.rate_limit(requests=2, per=relativedelta(seconds=1))
+        async def on_get(self, req, resp):
+            resp.status = falcon.HTTP_200
+            resp.text = "ASYNC OK"
+
+    @limiter.rate_limit(requests=2, per=relativedelta(seconds=1))
+    class AsyncClassDecoratedResource:
+        async def on_get(self, req, resp):
+            resp.status = falcon.HTTP_200
+            resp.text = "ASYNC CLASS OK"
+
+    app = falcon.asgi.App()
+    app.add_route("/async-test", AsyncTestResource())
+    app.add_route("/async-class-test", AsyncClassDecoratedResource())
+    return app
