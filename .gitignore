@@ -4,3 +4,9 @@ plan/goals.md
 plan/mvp-plan.md
 */__pycache__
 plan
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
