@@ -78,3 +78,45 @@ def test_async_class_level_rate_limit_blocks_after_limit(async_client):
     assert resp2.status_code == 200
     assert resp3.status_code == 429
     assert "Rate limit exceeded" in resp3.text
+
+
+def test_per_client_keys_isolate_limits(client):
+    headers_a = {"X-Client-Id": "client-a"}
+    headers_b = {"X-Client-Id": "client-b"}
+
+    first_a = client.get("/per-client", headers=headers_a)
+    second_a = client.get("/per-client", headers=headers_a)
+    first_b = client.get("/per-client", headers=headers_b)
+
+    assert first_a.status_code == 200
+    assert second_a.status_code == 429
+    assert "Rate limit exceeded" in second_a.text
+    assert first_b.status_code == 200
+
+
+def test_per_client_keys_isolate_class_decorated_limits(client):
+    headers_a = {"X-Client-Id": "client-a"}
+    headers_b = {"X-Client-Id": "client-b"}
+
+    first_a = client.get("/class-per-client", headers=headers_a)
+    second_a = client.get("/class-per-client", headers=headers_a)
+    first_b = client.get("/class-per-client", headers=headers_b)
+
+    assert first_a.status_code == 200
+    assert second_a.status_code == 429
+    assert "Rate limit exceeded" in second_a.text
+    assert first_b.status_code == 200
+
+
+def test_async_per_client_keys_isolate_limits(async_client):
+    headers_a = {"X-Client-Id": "client-a"}
+    headers_b = {"X-Client-Id": "client-b"}
+
+    first_a = async_client.get("/async-per-client", headers=headers_a)
+    second_a = async_client.get("/async-per-client", headers=headers_a)
+    first_b = async_client.get("/async-per-client", headers=headers_b)
+
+    assert first_a.status_code == 200
+    assert second_a.status_code == 429
+    assert "Rate limit exceeded" in second_a.text
+    assert first_b.status_code == 200
