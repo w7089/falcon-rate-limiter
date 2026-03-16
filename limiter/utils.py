@@ -1,6 +1,13 @@
 from dateutil.relativedelta import relativedelta
-from limits import RateLimitItem, RateLimitItemPerSecond, RateLimitItemPerMinute, RateLimitItemPerHour, \
-    RateLimitItemPerDay, RateLimitItemPerMonth, RateLimitItemPerYear
+from limits import (
+    RateLimitItem,
+    RateLimitItemPerSecond,
+    RateLimitItemPerMinute,
+    RateLimitItemPerHour,
+    RateLimitItemPerDay,
+    RateLimitItemPerMonth,
+    RateLimitItemPerYear,
+)
 
 
 def _create_rate_limit_item(requests: int, per: relativedelta) -> RateLimitItem:
@@ -17,4 +24,6 @@ def _create_rate_limit_item(requests: int, per: relativedelta) -> RateLimitItem:
     elif per.years:
         return RateLimitItemPerYear(requests)
     else:
-        raise ValueError("Invalid time delta: must specify seconds, minutes, hours, days, months, or years")
+        raise ValueError(
+            "Invalid time delta: must specify seconds, minutes, hours, days, months, or years"
+        )
