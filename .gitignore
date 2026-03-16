@@ -1,5 +1,6 @@
 .idea/
 .venv/
-goals.md
-mvp-plan.md
+plan/goals.md
+plan/mvp-plan.md
 */__pycache__
+plan
