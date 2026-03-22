@@ -1,7 +1,7 @@
 import asyncio
 import inspect
 from functools import wraps
-from typing import Callable, Any, cast
+from typing import Callable, Any, Sequence, cast
 
 from dateutil.relativedelta import relativedelta
 from limits.storage import Storage, MemoryStorage
@@ -9,6 +9,14 @@ from limits.strategies import FixedWindowRateLimiter
 import falcon
 
 from limiter.utils import _create_rate_limit_item
+
+
+def _get_remote_address(req: falcon.Request) -> str:
+    access_route = cast(Sequence[str] | None, getattr(req, "access_route", None))
+    if access_route:
+        return access_route[0]
+    remote_addr = req.remote_addr
+    return remote_addr if remote_addr is not None else "global"
 
 
 class FalconRateLimiter:
@@ -30,7 +38,7 @@ class FalconRateLimiter:
             return override
         if self._key_func is not None:
             return self._key_func
-        return lambda req: req.remote_addr or "global"
+        return _get_remote_address
 
     def rate_limit(
         self,
