@@ -44,7 +44,7 @@ def test_rate_limit_blocks_after_limit(client: TestClient) -> None:
     client.get("/test")
     resp3 = client.get("/test")
     assert resp3.status_code == 429
-    assert "Rate limit exceeded" in resp3.text
+    assert resp3.json["description"] == "Rate limit exceeded"
 
 
 def test_class_level_rate_limit_blocks_after_limit(client: TestClient) -> None:
@@ -55,7 +55,7 @@ def test_class_level_rate_limit_blocks_after_limit(client: TestClient) -> None:
     assert resp1.status_code == 200
     assert resp2.status_code == 200
     assert resp3.status_code == 429
-    assert "Rate limit exceeded" in resp3.text
+    assert resp3.json["description"] == "Rate limit exceeded"
 
 
 def test_async_rate_limit_allows_requests(async_client: TestClient) -> None:
@@ -72,7 +72,7 @@ def test_async_rate_limit_blocks_after_limit(async_client: TestClient) -> None:
     resp3 = async_client.get("/async-test")
 
     assert resp3.status_code == 429
-    assert "Rate limit exceeded" in resp3.text
+    assert resp3.json["description"] == "Rate limit exceeded"
 
 
 def test_async_class_level_rate_limit_blocks_after_limit(
@@ -85,7 +85,7 @@ def test_async_class_level_rate_limit_blocks_after_limit(
     assert resp1.status_code == 200
     assert resp2.status_code == 200
     assert resp3.status_code == 429
-    assert "Rate limit exceeded" in resp3.text
+    assert resp3.json["description"] == "Rate limit exceeded"
 
 
 def test_per_client_keys_isolate_limits(client: TestClient) -> None:
@@ -126,5 +126,19 @@ def test_async_per_client_keys_isolate_limits(async_client: TestClient) -> None:
 
     assert first_a.status_code == 200
     assert second_a.status_code == 429
-    assert "Rate limit exceeded" in second_a.text
+    assert second_a.json["description"] == "Rate limit exceeded"
     assert first_b.status_code == 200
+
+
+def test_custom_error_message(client: TestClient) -> None:
+    client.get("/custom-message")
+    resp = client.get("/custom-message")
+    assert resp.status_code == 429
+    assert resp.json["description"] == "Too fast, slow down"
+
+
+def test_async_custom_error_message(async_client: TestClient) -> None:
+    async_client.get("/async-custom-message")
+    resp = async_client.get("/async-custom-message")
+    assert resp.status_code == 429
+    assert resp.json["description"] == "Async too fast"

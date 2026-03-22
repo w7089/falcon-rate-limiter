@@ -45,9 +45,11 @@ class FalconRateLimiter:
         requests: int,
         per: relativedelta,
         key_func: Callable[[falcon.Request], str] | None = None,
+        error_message: str | None = None,
     ) -> Callable[[Any], Any]:
         # TODO create custom delta which will enforce that limits will be only per second, minute, hour, day, week, month, year
         client_key_func = self._resolve_key_func(key_func)
+        rejection_message = error_message or "Rate limit exceeded"
 
         def decorator(target: Any) -> Any:
             if inspect.isclass(target):
@@ -78,9 +80,7 @@ class FalconRateLimiter:
                 req, resp = _get_request_response(args)
                 key = _build_key(req)
                 if not self._limiter.hit(rate_limit_item, key):
-                    resp.status = falcon.HTTP_429
-                    resp.text = "Rate limit exceeded"
-                    return None
+                    raise falcon.HTTPTooManyRequests(description=rejection_message)
                 return target(*args, **kwargs)
 
             @wraps(target)
@@ -91,9 +91,7 @@ class FalconRateLimiter:
                     lambda: self._limiter.hit(rate_limit_item, key)
                 )
                 if not is_allowed:
-                    resp.status = falcon.HTTP_429
-                    resp.text = "Rate limit exceeded"
-                    return None
+                    raise falcon.HTTPTooManyRequests(description=rejection_message)
                 return await target(*args, **kwargs)
 
             if inspect.iscoroutinefunction(target):
