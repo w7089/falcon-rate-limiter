@@ -6,6 +6,9 @@ install:
 lint:
 	uv run ruff check .
 
+lint-auto-fix:
+    uv run ruff check --fix .:
+
 format:
 	uv run ruff format .
 
@@ -18,3 +21,4 @@ test:
 check: lint type-check test
 
 all: format check
+

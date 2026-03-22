@@ -2,6 +2,7 @@ import pytest
 from falcon.testing import TestClient
 from falcon import App
 from falcon.asgi import App as ASGIApp
+from falcon import HTTP_200, HTTP_429
 
 from limiter.core import FalconRateLimiter
 from tests.test_app import create_app, create_async_app
@@ -35,15 +36,15 @@ def async_client(async_falcon_app: ASGIApp) -> TestClient:
 def test_rate_limit_allows_requests(client: TestClient) -> None:
     resp1 = client.get("/test")
     resp2 = client.get("/test")
-    assert resp1.status_code == 200
-    assert resp2.status_code == 200
+    assert resp1.status_code == HTTP_200
+    assert resp2.status_code == HTTP_200
 
 
 def test_rate_limit_blocks_after_limit(client: TestClient) -> None:
     client.get("/test")
     client.get("/test")
     resp3 = client.get("/test")
-    assert resp3.status_code == 429
+    assert resp3.status_code == HTTP_429
     assert resp3.json["description"] == "Rate limit exceeded"
 
 
@@ -52,9 +53,9 @@ def test_class_level_rate_limit_blocks_after_limit(client: TestClient) -> None:
     resp2 = client.get("/class-test")
     resp3 = client.get("/class-test")
 
-    assert resp1.status_code == 200
-    assert resp2.status_code == 200
-    assert resp3.status_code == 429
+    assert resp1.status_code == HTTP_200
+    assert resp2.status_code == HTTP_200
+    assert resp3.status_code == HTTP_429
     assert resp3.json["description"] == "Rate limit exceeded"
 
 
@@ -62,8 +63,8 @@ def test_async_rate_limit_allows_requests(async_client: TestClient) -> None:
     resp1 = async_client.get("/async-test")
     resp2 = async_client.get("/async-test")
 
-    assert resp1.status_code == 200
-    assert resp2.status_code == 200
+    assert resp1.status_code == HTTP_200
+    assert resp2.status_code == HTTP_200
 
 
 def test_async_rate_limit_blocks_after_limit(async_client: TestClient) -> None:
@@ -71,7 +72,7 @@ def test_async_rate_limit_blocks_after_limit(async_client: TestClient) -> None:
     async_client.get("/async-test")
     resp3 = async_client.get("/async-test")
 
-    assert resp3.status_code == 429
+    assert resp3.status_code == HTTP_429
     assert resp3.json["description"] == "Rate limit exceeded"
 
 
@@ -82,9 +83,9 @@ def test_async_class_level_rate_limit_blocks_after_limit(
     resp2 = async_client.get("/async-class-test")
     resp3 = async_client.get("/async-class-test")
 
-    assert resp1.status_code == 200
-    assert resp2.status_code == 200
-    assert resp3.status_code == 429
+    assert resp1.status_code == HTTP_200
+    assert resp2.status_code == HTTP_200
+    assert resp3.status_code == HTTP_429
     assert resp3.json["description"] == "Rate limit exceeded"
 
 
@@ -96,10 +97,10 @@ def test_per_client_keys_isolate_limits(client: TestClient) -> None:
     second_a = client.get("/per-client", headers=headers_a)
     first_b = client.get("/per-client", headers=headers_b)
 
-    assert first_a.status_code == 200
-    assert second_a.status_code == 429
+    assert first_a.status_code == HTTP_200
+    assert second_a.status_code == HTTP_429
     assert "Rate limit exceeded" in second_a.text
-    assert first_b.status_code == 200
+    assert first_b.status_code == HTTP_200
 
 
 def test_per_client_keys_isolate_class_decorated_limits(client: TestClient) -> None:
@@ -110,10 +111,10 @@ def test_per_client_keys_isolate_class_decorated_limits(client: TestClient) -> N
     second_a = client.get("/class-per-client", headers=headers_a)
     first_b = client.get("/class-per-client", headers=headers_b)
 
-    assert first_a.status_code == 200
-    assert second_a.status_code == 429
+    assert first_a.status_code == HTTP_200
+    assert second_a.status_code == HTTP_429
     assert "Rate limit exceeded" in second_a.text
-    assert first_b.status_code == 200
+    assert first_b.status_code == HTTP_200
 
 
 def test_async_per_client_keys_isolate_limits(async_client: TestClient) -> None:
@@ -124,29 +125,29 @@ def test_async_per_client_keys_isolate_limits(async_client: TestClient) -> None:
     second_a = async_client.get("/async-per-client", headers=headers_a)
     first_b = async_client.get("/async-per-client", headers=headers_b)
 
-    assert first_a.status_code == 200
-    assert second_a.status_code == 429
+    assert first_a.status_code == HTTP_200
+    assert second_a.status_code == HTTP_429
     assert second_a.json["description"] == "Rate limit exceeded"
-    assert first_b.status_code == 200
+    assert first_b.status_code == HTTP_200
 
 
 def test_custom_error_message(client: TestClient) -> None:
     client.get("/custom-message")
     resp = client.get("/custom-message")
-    assert resp.status_code == 429
+    assert resp.status_code == HTTP_429
     assert resp.json["description"] == "Too fast, slow down"
 
 
 def test_async_custom_error_message(async_client: TestClient) -> None:
     async_client.get("/async-custom-message")
     resp = async_client.get("/async-custom-message")
-    assert resp.status_code == 429
+    assert resp.status_code == HTTP_429
     assert resp.json["description"] == "Async too fast"
 
 
 def test_rate_limit_headers_on_allowed_request(client: TestClient) -> None:
     resp = client.get("/test")
-    assert resp.status_code == 200
+    assert resp.status_code == HTTP_200
     assert resp.headers["X-RateLimit-Limit"] == "2"
     assert resp.headers["X-RateLimit-Remaining"] == "1"
     assert "X-RateLimit-Reset" in resp.headers
@@ -156,7 +157,7 @@ def test_rate_limit_headers_on_blocked_request(client: TestClient) -> None:
     client.get("/test")
     client.get("/test")
     resp = client.get("/test")
-    assert resp.status_code == 429
+    assert resp.status_code == HTTP_429
     assert resp.headers["X-RateLimit-Limit"] == "2"
     assert resp.headers["X-RateLimit-Remaining"] == "0"
     assert "X-RateLimit-Reset" in resp.headers
@@ -179,14 +180,14 @@ def test_headers_disabled(falcon_app: App) -> None:
     app.add_route("/no-headers", NoHeaderResource())
     c = TestClient(app)
     resp = c.get("/no-headers")
-    assert resp.status_code == 200
+    assert resp.status_code == HTTP_200
     assert "X-RateLimit-Limit" not in resp.headers
     assert "X-RateLimit-Remaining" not in resp.headers
 
 
 def test_async_rate_limit_headers_on_allowed_request(async_client: TestClient) -> None:
     resp = async_client.get("/async-test")
-    assert resp.status_code == 200
+    assert resp.status_code == HTTP_200
     assert resp.headers["X-RateLimit-Limit"] == "2"
     assert resp.headers["X-RateLimit-Remaining"] == "1"
     assert "X-RateLimit-Reset" in resp.headers
@@ -196,7 +197,7 @@ def test_async_rate_limit_headers_on_blocked_request(async_client: TestClient) -
     async_client.get("/async-test")
     async_client.get("/async-test")
     resp = async_client.get("/async-test")
-    assert resp.status_code == 429
+    assert resp.status_code == HTTP_429
     assert resp.headers["X-RateLimit-Limit"] == "2"
     assert resp.headers["X-RateLimit-Remaining"] == "0"
     assert "X-RateLimit-Reset" in resp.headers
