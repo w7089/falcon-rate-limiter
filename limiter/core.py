@@ -1,11 +1,13 @@
 import asyncio
 import inspect
+import time
 from functools import wraps
 from typing import Callable, Any, Sequence, cast
 
 from dateutil.relativedelta import relativedelta
 from limits.storage import Storage, MemoryStorage
 from limits.strategies import FixedWindowRateLimiter
+from limits.util import WindowStats
 import falcon
 
 from limiter.utils import _create_rate_limit_item
@@ -24,12 +26,14 @@ class FalconRateLimiter:
         self,
         storage: Storage | None = None,
         key_func: Callable[[falcon.Request], str] | None = None,
+        headers_enabled: bool = True,
     ) -> None:
         if storage is None:
             storage = MemoryStorage()
         self._storage = storage
         self._limiter = FixedWindowRateLimiter(self._storage)
         self._key_func = key_func
+        self._headers_enabled = headers_enabled
 
     def _resolve_key_func(
         self, override: Callable[[falcon.Request], str] | None
@@ -71,27 +75,65 @@ class FalconRateLimiter:
                 )
 
             def _build_key(req: falcon.Request) -> str:
-                # Type check: client_key_func is guaranteed to be Callable[[Request], str]
                 client_id = client_key_func(req)
                 return f"{target.__qualname__}:{client_id}"
+
+            def _set_headers(resp: falcon.Response, stats: WindowStats) -> None:
+                reset_time = int(stats.reset_time)
+                resp.set_header("X-RateLimit-Limit", str(requests))
+                resp.set_header("X-RateLimit-Remaining", str(stats.remaining))
+                resp.set_header("X-RateLimit-Reset", str(reset_time))
+
+            def _retry_after_seconds(stats: WindowStats | None) -> int | None:
+                if stats is None:
+                    return None
+                return max(0, int(stats.reset_time - time.time()))
 
             @wraps(target)
             def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
                 req, resp = _get_request_response(args)
                 key = _build_key(req)
-                if not self._limiter.hit(rate_limit_item, key):
-                    raise falcon.HTTPTooManyRequests(description=rejection_message)
+                allowed = self._limiter.hit(rate_limit_item, key)
+                stats: WindowStats | None = None
+                if self._headers_enabled or not allowed:
+                    stats = self._limiter.get_window_stats(rate_limit_item, key)
+                if self._headers_enabled and stats is not None:
+                    _set_headers(resp, stats)
+                if not allowed:
+                    retry_after = _retry_after_seconds(stats)
+                    raise falcon.HTTPTooManyRequests(
+                        description=rejection_message,
+                        retry_after=retry_after,
+                    )
                 return target(*args, **kwargs)
 
             @wraps(target)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 req, resp = _get_request_response(args)
                 key = _build_key(req)
-                is_allowed = await asyncio.to_thread(
-                    lambda: self._limiter.hit(rate_limit_item, key)
-                )
-                if not is_allowed:
-                    raise falcon.HTTPTooManyRequests(description=rejection_message)
+
+                def _hit_and_stats() -> tuple[bool, WindowStats | None]:
+                    hit_allowed = self._limiter.hit(rate_limit_item, key)
+                    hit_stats = (
+                        self._limiter.get_window_stats(rate_limit_item, key)
+                        if self._headers_enabled or not hit_allowed
+                        else None
+                    )
+                    return hit_allowed, hit_stats
+
+                allowed, stats = await asyncio.to_thread(_hit_and_stats)
+                if self._headers_enabled and stats is not None:
+                    _set_headers(resp, stats)
+                if not allowed:
+                    retry_after = _retry_after_seconds(
+                        stats
+                        if stats is not None
+                        else self._limiter.get_window_stats(rate_limit_item, key)
+                    )
+                    raise falcon.HTTPTooManyRequests(
+                        description=rejection_message,
+                        retry_after=retry_after,
+                    )
                 return await target(*args, **kwargs)
 
             if inspect.iscoroutinefunction(target):
