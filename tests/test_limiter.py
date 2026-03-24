@@ -2,10 +2,13 @@ import pytest
 from falcon.testing import TestClient
 from falcon import App
 from falcon.asgi import App as ASGIApp
-from falcon import HTTP_200, HTTP_429
+from http import HTTPStatus
 
 from limiter.core import FalconRateLimiter
 from tests.test_app import create_app, create_async_app
+
+HTTP_200 = HTTPStatus.OK
+HTTP_429 = HTTPStatus.TOO_MANY_REQUESTS
 
 
 @pytest.fixture

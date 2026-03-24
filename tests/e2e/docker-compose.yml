@@ -1,0 +1,16 @@
+version: "3.3"
+
+services:
+  app:
+    build:
+      context: ../..
+      dockerfile: tests/e2e/app/Dockerfile
+    ports:
+      - "8765:8080"
+    security_opt:
+      - seccomp:unconfined
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/health')\""]
+      interval: 2s
+      timeout: 5s
+      retries: 15
