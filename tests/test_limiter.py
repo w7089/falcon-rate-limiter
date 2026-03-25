@@ -5,7 +5,12 @@ from falcon.asgi import App as ASGIApp
 from http import HTTPStatus
 
 from limiter.core import FalconRateLimiter
-from tests.test_app import create_app, create_async_app
+from tests.test_app import (
+    create_app,
+    create_async_app,
+    create_async_middleware_app,
+    create_middleware_app,
+)
 
 HTTP_200 = HTTPStatus.OK
 HTTP_429 = HTTPStatus.TOO_MANY_REQUESTS
@@ -34,6 +39,16 @@ def async_falcon_app() -> ASGIApp:
 @pytest.fixture
 def async_client(async_falcon_app: ASGIApp) -> TestClient:
     return TestClient(async_falcon_app)
+
+
+@pytest.fixture
+def middleware_client() -> TestClient:
+    return TestClient(create_middleware_app())
+
+
+@pytest.fixture
+def async_middleware_client() -> TestClient:
+    return TestClient(create_async_middleware_app())
 
 
 def test_rate_limit_allows_requests(client: TestClient) -> None:
@@ -205,3 +220,67 @@ def test_async_rate_limit_headers_on_blocked_request(async_client: TestClient) -
     assert resp.headers["X-RateLimit-Remaining"] == "0"
     assert "X-RateLimit-Reset" in resp.headers
     assert "Retry-After" in resp.headers
+
+
+def test_middleware_blocks_undecorated_route(middleware_client: TestClient) -> None:
+    resp1 = middleware_client.get("/middleware-test")
+    resp2 = middleware_client.get("/middleware-test")
+
+    assert resp1.status_code == HTTP_200
+    assert resp2.status_code == HTTP_429
+    assert resp2.json["description"] == "Rate limit exceeded"
+
+
+def test_middleware_skips_decorated_route(middleware_client: TestClient) -> None:
+    resp1 = middleware_client.get("/middleware-decorated")
+    resp2 = middleware_client.get("/middleware-decorated")
+    resp3 = middleware_client.get("/middleware-decorated")
+
+    assert resp1.status_code == HTTP_200
+    assert resp2.status_code == HTTP_200
+    assert resp3.status_code == HTTP_429
+    assert resp3.json["description"] == "Rate limit exceeded"
+
+
+def test_middleware_respects_limit_undecorated_routes_toggle() -> None:
+    client = TestClient(create_middleware_app(limit_undecorated_routes=False))
+
+    resp1 = client.get("/middleware-test")
+    resp2 = client.get("/middleware-test")
+
+    assert resp1.status_code == HTTP_200
+    assert resp2.status_code == HTTP_200
+
+
+def test_async_middleware_blocks_undecorated_route(
+    async_middleware_client: TestClient,
+) -> None:
+    resp1 = async_middleware_client.get("/async-middleware-test")
+    resp2 = async_middleware_client.get("/async-middleware-test")
+
+    assert resp1.status_code == HTTP_200
+    assert resp2.status_code == HTTP_429
+    assert resp2.json["description"] == "Rate limit exceeded"
+
+
+def test_async_middleware_skips_decorated_route(
+    async_middleware_client: TestClient,
+) -> None:
+    resp1 = async_middleware_client.get("/async-middleware-decorated")
+    resp2 = async_middleware_client.get("/async-middleware-decorated")
+    resp3 = async_middleware_client.get("/async-middleware-decorated")
+
+    assert resp1.status_code == HTTP_200
+    assert resp2.status_code == HTTP_200
+    assert resp3.status_code == HTTP_429
+    assert resp3.json["description"] == "Rate limit exceeded"
+
+
+def test_async_middleware_respects_limit_undecorated_routes_toggle() -> None:
+    client = TestClient(create_async_middleware_app(limit_undecorated_routes=False))
+
+    resp1 = client.get("/async-middleware-test")
+    resp2 = client.get("/async-middleware-test")
+
+    assert resp1.status_code == HTTP_200
+    assert resp2.status_code == HTTP_200

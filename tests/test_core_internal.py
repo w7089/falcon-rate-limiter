@@ -2,7 +2,7 @@ import falcon
 from falcon import testing
 
 from limiter import FalconRateLimiter
-from limiter.core import _get_remote_address
+from limiter.utils import _get_remote_address
 
 
 def test_default_key_uses_forwarded_address() -> None:
