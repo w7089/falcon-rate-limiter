@@ -14,7 +14,10 @@ from limiter._helpers import (
     _get_request_response,
     _mark_rate_limited,
 )
-from limiter.utils import _create_rate_limit_item, _get_remote_address
+from limiter.utils import (
+    _create_rate_limit_item,
+    _get_remote_address,
+)
 
 
 class FalconRateLimiter:
@@ -22,6 +25,8 @@ class FalconRateLimiter:
         self,
         storage: Storage | None = None,
         key_func: Callable[[falcon.Request], str] | None = None,
+        default_requests: int | None = None,
+        default_per: relativedelta | None = None,
         headers_enabled: bool = True,
         limit_undecorated_routes: bool = True,
     ) -> None:
@@ -30,6 +35,7 @@ class FalconRateLimiter:
         self._storage = storage
         self._limiter = FixedWindowRateLimiter(self._storage)
         self._key_func = key_func
+        self._default_limit = self._create_default_limit(default_requests, default_per)
         self._headers_enabled = headers_enabled
         self._limit_undecorated_routes = limit_undecorated_routes
 
@@ -45,6 +51,28 @@ class FalconRateLimiter:
     @property
     def limit_undecorated_routes(self) -> bool:
         return self._limit_undecorated_routes
+
+    @property
+    def default_limit(self) -> RateLimitDefinition | None:
+        return self._default_limit
+
+    def _create_default_limit(
+        self,
+        default_requests: int | None,
+        default_per: relativedelta | None,
+    ) -> RateLimitDefinition | None:
+        if default_requests is None and default_per is None:
+            return None
+        if default_requests is None or default_per is None:
+            raise ValueError(
+                "default_requests and default_per must be provided together"
+            )
+        return RateLimitDefinition(
+            requests=default_requests,
+            rate_limit_item=_create_rate_limit_item(default_requests, default_per),
+            key_func=self._resolve_key_func(None),
+            rejection_message="Rate limit exceeded",
+        )
 
     def create_limit(
         self,
@@ -76,6 +104,16 @@ class FalconRateLimiter:
             resp,
         )
 
+    def enforce_limits(
+        self,
+        limits: tuple[RateLimitDefinition, ...],
+        scope: str,
+        req: falcon.Request,
+        resp: falcon.Response,
+    ) -> None:
+        for limit in limits:
+            self.enforce_limit(limit, scope, req, resp)
+
     async def enforce_limit_async(
         self,
         limit: RateLimitDefinition,
@@ -91,6 +129,16 @@ class FalconRateLimiter:
             req,
             resp,
         )
+
+    async def enforce_limits_async(
+        self,
+        limits: tuple[RateLimitDefinition, ...],
+        scope: str,
+        req: falcon.Request,
+        resp: falcon.Response,
+    ) -> None:
+        for limit in limits:
+            await self.enforce_limit_async(limit, scope, req, resp)
 
     def rate_limit(
         self,

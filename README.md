@@ -166,6 +166,36 @@ app.add_route("/health", HealthResource())
 In this setup, the middleware checks requests in `process_resource()` before the
 responder runs.
 
+## Default limits for undecorated routes
+
+You can define app-wide default limits on the limiter and let middleware apply
+them to routes that do not have their own `@rate_limit(...)` decorator.
+
+```python
+import falcon
+from dateutil.relativedelta import relativedelta
+
+from limiter import FalconRateLimiter, FalconRateLimitMiddleware
+
+limiter = FalconRateLimiter(
+    default_requests=10,
+    default_per=relativedelta(minutes=1),
+)
+middleware = FalconRateLimitMiddleware(limiter)
+
+
+class StatusResource:
+    def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+        resp.text = "ok"
+
+
+app = falcon.App(middleware=[middleware])
+app.add_route("/status", StatusResource())
+```
+
+With this setup, `/status` is limited to ten requests per minute per client even
+though the resource is undecorated.
+
 ### What is `limit_undecorated_routes`?
 
 `limit_undecorated_routes` is a toggle on `FalconRateLimiter` that controls whether the

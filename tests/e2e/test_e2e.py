@@ -98,3 +98,13 @@ def test_different_clients_have_independent_counters(http: httpx.Client) -> None
     still_allowed = http.get("/limited", headers={"X-Test-Client-Id": id_b})
     assert blocked.status_code == 429
     assert still_allowed.status_code == 200
+
+
+def test_default_limits_apply_to_undecorated_routes(http: httpx.Client) -> None:
+    headers = {"X-Test-Client-Id": _uid()}
+    first = http.get("/default-limited", headers=headers)
+    second = http.get("/default-limited", headers=headers)
+    third = http.get("/default-limited", headers=headers)
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert third.status_code == 429

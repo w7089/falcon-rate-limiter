@@ -1,4 +1,5 @@
 import pytest
+from dateutil.relativedelta import relativedelta
 from falcon.testing import TestClient
 from falcon import App
 from falcon.asgi import App as ASGIApp
@@ -252,6 +253,22 @@ def test_middleware_respects_limit_undecorated_routes_toggle() -> None:
     assert resp2.status_code == HTTP_200
 
 
+def test_default_limits_apply_to_undecorated_middleware_route() -> None:
+    client = TestClient(
+        create_middleware_app(
+            default_requests=1,
+            default_per=relativedelta(seconds=1),
+        )
+    )
+
+    resp1 = client.get("/middleware-default")
+    resp2 = client.get("/middleware-default")
+
+    assert resp1.status_code == HTTP_200
+    assert resp2.status_code == HTTP_429
+    assert resp2.json["description"] == "Rate limit exceeded"
+
+
 def test_async_middleware_blocks_undecorated_route(
     async_middleware_client: TestClient,
 ) -> None:
@@ -284,3 +301,19 @@ def test_async_middleware_respects_limit_undecorated_routes_toggle() -> None:
 
     assert resp1.status_code == HTTP_200
     assert resp2.status_code == HTTP_200
+
+
+def test_async_default_limits_apply_to_undecorated_middleware_route() -> None:
+    client = TestClient(
+        create_async_middleware_app(
+            default_requests=1,
+            default_per=relativedelta(seconds=1),
+        )
+    )
+
+    resp1 = client.get("/async-middleware-default")
+    resp2 = client.get("/async-middleware-default")
+
+    assert resp1.status_code == HTTP_200
+    assert resp2.status_code == HTTP_429
+    assert resp2.json["description"] == "Rate limit exceeded"

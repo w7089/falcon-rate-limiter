@@ -8,13 +8,21 @@ Each test generates a unique UUID so counters never bleed across tests.
 import falcon
 from dateutil.relativedelta import relativedelta
 
-from limiter import FalconRateLimiter
+from limiter import FalconRateLimitMiddleware, FalconRateLimiter
 
 limiter = FalconRateLimiter()
 
 
 def _client_key(req: falcon.Request) -> str:
     return req.get_header("X-Test-Client-Id") or req.remote_addr or "global"
+
+
+default_limiter = FalconRateLimiter(
+    default_requests=2,
+    default_per=relativedelta(minutes=1),
+    key_func=_client_key,
+)
+default_middleware = FalconRateLimitMiddleware(default_limiter)
 
 
 class HealthResource:
@@ -51,8 +59,14 @@ class CustomErrorResource:
         resp.media = {"message": "ok"}
 
 
-application = falcon.App()
+class DefaultLimitedResource:
+    def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+        resp.media = {"message": "default ok"}
+
+
+application = falcon.App(middleware=[default_middleware])
 application.add_route("/health", HealthResource())
 application.add_route("/limited", LimitedResource())
 application.add_route("/headers", HeadersResource())
 application.add_route("/custom-error", CustomErrorResource())
+application.add_route("/default-limited", DefaultLimitedResource())

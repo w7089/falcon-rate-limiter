@@ -4,10 +4,7 @@ from typing import TYPE_CHECKING, Any, Callable
 from dateutil.relativedelta import relativedelta
 import falcon
 
-from limiter._helpers import (
-    RateLimitDefinition,
-    _is_rate_limited,
-)
+from limiter._helpers import _is_rate_limited
 
 if TYPE_CHECKING:
     from limiter.core import FalconRateLimiter
@@ -17,18 +14,23 @@ class FalconRateLimitMiddleware:
     def __init__(
         self,
         limiter: "FalconRateLimiter",
-        requests: int,
-        per: relativedelta,
+        requests: int | None = None,
+        per: relativedelta | None = None,
         key_func: Callable[[falcon.Request], str] | None = None,
         error_message: str | None = None,
     ) -> None:
         self._limiter = limiter
-        self._resolved_limit: RateLimitDefinition = limiter.create_limit(
-            requests=requests,
-            per=per,
-            key_func=key_func,
-            error_message=error_message,
-        )
+        if requests is None and per is None:
+            self._resolved_limit = limiter.default_limit
+        elif requests is not None and per is not None:
+            self._resolved_limit = limiter.create_limit(
+                requests=requests,
+                per=per,
+                key_func=key_func,
+                error_message=error_message,
+            )
+        else:
+            raise ValueError("requests and per must be provided together")
 
     @staticmethod
     def _is_decorated_resource_or_responder(resource: Any, responder: Any) -> bool:
@@ -50,7 +52,11 @@ class FalconRateLimitMiddleware:
     ) -> None:
         del params
         responder = getattr(resource, f"on_{req.method.lower()}", None)
-        if responder is None or not self._limiter.limit_undecorated_routes:
+        if (
+            responder is None
+            or not self._limiter.limit_undecorated_routes
+            or self._resolved_limit is None
+        ):
             return
         if self._is_decorated_resource_or_responder(resource, responder):
             return
@@ -67,7 +73,11 @@ class FalconRateLimitMiddleware:
     ) -> None:
         del params
         responder = getattr(resource, f"on_{req.method.lower()}", None)
-        if responder is None or not self._limiter.limit_undecorated_routes:
+        if (
+            responder is None
+            or not self._limiter.limit_undecorated_routes
+            or self._resolved_limit is None
+        ):
             return
         if self._is_decorated_resource_or_responder(resource, responder):
             return

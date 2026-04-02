@@ -105,13 +105,24 @@ def create_async_app() -> falcon.asgi.App:
     return app
 
 
-def create_middleware_app(limit_undecorated_routes: bool = True) -> falcon.App:
-    limiter = FalconRateLimiter(limit_undecorated_routes=limit_undecorated_routes)
-    middleware = FalconRateLimitMiddleware(
-        limiter,
-        requests=1,
-        per=relativedelta(seconds=1),
+def create_middleware_app(
+    limit_undecorated_routes: bool = True,
+    default_requests: int | None = None,
+    default_per: relativedelta | None = None,
+) -> falcon.App:
+    limiter = FalconRateLimiter(
+        limit_undecorated_routes=limit_undecorated_routes,
+        default_requests=default_requests,
+        default_per=default_per,
     )
+    if default_requests is None and default_per is None:
+        middleware = FalconRateLimitMiddleware(
+            limiter,
+            requests=1,
+            per=relativedelta(seconds=1),
+        )
+    else:
+        middleware = FalconRateLimitMiddleware(limiter)
 
     class MiddlewareProtectedResource:
         def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
@@ -124,21 +135,36 @@ def create_middleware_app(limit_undecorated_routes: bool = True) -> falcon.App:
             resp.status = falcon.HTTP_200
             resp.text = "DECORATED OK"
 
+    class DefaultLimitedResource:
+        def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.status = falcon.HTTP_200
+            resp.text = "DEFAULT OK"
+
     app = falcon.App(middleware=[middleware])
     app.add_route("/middleware-test", MiddlewareProtectedResource())
     app.add_route("/middleware-decorated", DecoratedResource())
+    app.add_route("/middleware-default", DefaultLimitedResource())
     return app
 
 
 def create_async_middleware_app(
     limit_undecorated_routes: bool = True,
+    default_requests: int | None = None,
+    default_per: relativedelta | None = None,
 ) -> falcon.asgi.App:
-    limiter = FalconRateLimiter(limit_undecorated_routes=limit_undecorated_routes)
-    middleware = FalconRateLimitMiddleware(
-        limiter,
-        requests=1,
-        per=relativedelta(seconds=1),
+    limiter = FalconRateLimiter(
+        limit_undecorated_routes=limit_undecorated_routes,
+        default_requests=default_requests,
+        default_per=default_per,
     )
+    if default_requests is None and default_per is None:
+        middleware = FalconRateLimitMiddleware(
+            limiter,
+            requests=1,
+            per=relativedelta(seconds=1),
+        )
+    else:
+        middleware = FalconRateLimitMiddleware(limiter)
 
     class AsyncMiddlewareProtectedResource:
         async def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
@@ -151,7 +177,13 @@ def create_async_middleware_app(
             resp.status = falcon.HTTP_200
             resp.text = "ASYNC DECORATED OK"
 
+    class AsyncDefaultLimitedResource:
+        async def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.status = falcon.HTTP_200
+            resp.text = "ASYNC DEFAULT OK"
+
     app = falcon.asgi.App(middleware=cast(list[Any], [middleware]))
     app.add_route("/async-middleware-test", AsyncMiddlewareProtectedResource())
     app.add_route("/async-middleware-decorated", AsyncDecoratedResource())
+    app.add_route("/async-middleware-default", AsyncDefaultLimitedResource())
     return app
