@@ -1,10 +1,12 @@
 import pytest
+import falcon
 from dateutil.relativedelta import relativedelta
 from falcon.testing import TestClient
 from falcon import App
 from falcon.asgi import App as ASGIApp
 from http import HTTPStatus
 
+from limiter import FalconRateLimitMiddleware
 from limiter.core import FalconRateLimiter
 from tests.test_app import (
     create_app,
@@ -164,6 +166,53 @@ def test_async_custom_error_message(async_client: TestClient) -> None:
     assert resp.json["description"] == "Async too fast"
 
 
+def test_exempt_decorator_skips_explicit_limits(client: TestClient) -> None:
+    resp1 = client.get("/exempt-decorated")
+    resp2 = client.get("/exempt-decorated")
+    resp3 = client.get("/exempt-decorated")
+
+    assert resp1.status_code == HTTP_200
+    assert resp2.status_code == HTTP_200
+    assert resp3.status_code == HTTP_200
+
+
+def test_async_exempt_decorator_skips_explicit_limits(
+    async_client: TestClient,
+) -> None:
+    resp1 = async_client.get("/async-exempt-decorated")
+    resp2 = async_client.get("/async-exempt-decorated")
+    resp3 = async_client.get("/async-exempt-decorated")
+
+    assert resp1.status_code == HTTP_200
+    assert resp2.status_code == HTTP_200
+    assert resp3.status_code == HTTP_200
+
+
+def test_exempt_decorator_supports_resource_instances() -> None:
+    limiter = FalconRateLimiter()
+
+    class SharedResource:
+        @limiter.rate_limit(requests=1, per=relativedelta(seconds=1))
+        def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.text = "ok"
+
+    exempt_resource = SharedResource()
+    limited_resource = SharedResource()
+    limiter.exempt(exempt_resource)
+
+    app = falcon.App()
+    app.add_route("/instance-exempt", exempt_resource)
+    app.add_route("/instance-limited", limited_resource)
+    client = TestClient(app)
+
+    assert client.get("/instance-exempt").status_code == HTTP_200
+    assert client.get("/instance-exempt").status_code == HTTP_200
+    assert client.get("/instance-exempt").status_code == HTTP_200
+
+    assert client.get("/instance-limited").status_code == HTTP_200
+    assert client.get("/instance-limited").status_code == HTTP_429
+
+
 def test_rate_limit_headers_on_allowed_request(client: TestClient) -> None:
     resp = client.get("/test")
     assert resp.status_code == HTTP_200
@@ -269,6 +318,23 @@ def test_default_limits_apply_to_undecorated_middleware_route() -> None:
     assert resp2.json["description"] == "Rate limit exceeded"
 
 
+def test_exempt_decorator_skips_default_middleware_limits() -> None:
+    client = TestClient(
+        create_middleware_app(
+            default_requests=1,
+            default_per=relativedelta(seconds=1),
+        )
+    )
+
+    resp1 = client.get("/middleware-exempt")
+    resp2 = client.get("/middleware-exempt")
+    resp3 = client.get("/middleware-exempt")
+
+    assert resp1.status_code == HTTP_200
+    assert resp2.status_code == HTTP_200
+    assert resp3.status_code == HTTP_200
+
+
 def test_async_middleware_blocks_undecorated_route(
     async_middleware_client: TestClient,
 ) -> None:
@@ -317,3 +383,47 @@ def test_async_default_limits_apply_to_undecorated_middleware_route() -> None:
     assert resp1.status_code == HTTP_200
     assert resp2.status_code == HTTP_429
     assert resp2.json["description"] == "Rate limit exceeded"
+
+
+def test_async_exempt_decorator_skips_default_middleware_limits() -> None:
+    client = TestClient(
+        create_async_middleware_app(
+            default_requests=1,
+            default_per=relativedelta(seconds=1),
+        )
+    )
+
+    resp1 = client.get("/async-middleware-exempt")
+    resp2 = client.get("/async-middleware-exempt")
+    resp3 = client.get("/async-middleware-exempt")
+
+    assert resp1.status_code == HTTP_200
+    assert resp2.status_code == HTTP_200
+    assert resp3.status_code == HTTP_200
+
+
+def test_exempt_decorator_supports_middleware_resource_instances() -> None:
+    limiter = FalconRateLimiter(
+        default_requests=1,
+        default_per=relativedelta(seconds=1),
+    )
+
+    class SharedResource:
+        def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.text = "ok"
+
+    exempt_resource = SharedResource()
+    limited_resource = SharedResource()
+    limiter.exempt(exempt_resource)
+
+    app = falcon.App(middleware=[FalconRateLimitMiddleware(limiter)])
+    app.add_route("/middleware-instance-exempt", exempt_resource)
+    app.add_route("/middleware-instance-limited", limited_resource)
+    client = TestClient(app)
+
+    assert client.get("/middleware-instance-exempt").status_code == HTTP_200
+    assert client.get("/middleware-instance-exempt").status_code == HTTP_200
+    assert client.get("/middleware-instance-exempt").status_code == HTTP_200
+
+    assert client.get("/middleware-instance-limited").status_code == HTTP_200
+    assert client.get("/middleware-instance-limited").status_code == HTTP_429

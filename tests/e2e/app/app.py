@@ -64,9 +64,16 @@ class DefaultLimitedResource:
         resp.media = {"message": "default ok"}
 
 
+@default_limiter.exempt
+class ExemptDefaultResource:
+    def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+        resp.media = {"message": "exempt ok"}
+
+
 application = falcon.App(middleware=[default_middleware])
 application.add_route("/health", HealthResource())
 application.add_route("/limited", LimitedResource())
 application.add_route("/headers", HeadersResource())
 application.add_route("/custom-error", CustomErrorResource())
 application.add_route("/default-limited", DefaultLimitedResource())
+application.add_route("/default-exempt", ExemptDefaultResource())

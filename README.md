@@ -12,6 +12,7 @@ Current implemented features include:
 - `429 Too Many Requests` errors via `falcon.HTTPTooManyRequests`
 - rate-limit response headers
 - Falcon middleware-based automatic checks for undecorated routes
+- `@limiter.exempt` to skip explicit and default limits
 
 ## Installation
 
@@ -233,6 +234,57 @@ app = falcon.App(middleware=[middleware])
 With the configuration above, undecorated routes are not limited by the
 middleware.
 
+## Exempting routes from all limiting
+
+Use `@limiter.exempt` when a responder or resource must bypass both explicit
+decorator limits and middleware-applied default limits.
+
+```python
+import falcon
+
+from limiter import FalconRateLimiter
+
+limiter = FalconRateLimiter()
+
+
+class MetricsResource:
+    @limiter.exempt
+    @limiter.rate_limit(requests=1, per=relativedelta(seconds=1))
+    def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+        resp.text = "always available"
+```
+
+You can also exempt an entire resource class:
+
+```python
+@limiter.exempt
+class HealthResource:
+    def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+        resp.text = "ok"
+```
+
+Class exemption applies to every instance of that resource class registered in
+the app. If you only want to exempt one mounted resource object, exempt the
+instance instead:
+
+```python
+class HealthResource:
+    def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+        resp.text = "ok"
+
+
+public_health = HealthResource()
+internal_health = HealthResource()
+
+limiter.exempt(internal_health)
+
+app.add_route("/health", public_health)
+app.add_route("/internal/health", internal_health)
+```
+
+With this setup, only `/internal/health` is exempt. `/health` still uses the
+configured limits.
+
 ### Mixing middleware with decorators
 
 Middleware and decorators are designed to work together safely.
@@ -302,5 +354,5 @@ app.add_route("/async", AsyncResource())
 - limits are backed by `limits.FixedWindowRateLimiter`
 - in-memory storage is used by default
 - rejected requests raise `falcon.HTTPTooManyRequests`
-- middleware currently takes explicit `requests` and `per` arguments
-- automatic default limits for all routes are planned separately in Phase 3.2
+- middleware can use explicit limits or the limiter's default limit
+- `@limiter.exempt` bypasses both decorator and middleware-based checks

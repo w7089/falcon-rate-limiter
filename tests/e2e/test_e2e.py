@@ -108,3 +108,13 @@ def test_default_limits_apply_to_undecorated_routes(http: httpx.Client) -> None:
     assert first.status_code == 200
     assert second.status_code == 200
     assert third.status_code == 429
+
+
+def test_exempt_decorator_skips_default_limits(http: httpx.Client) -> None:
+    headers = {"X-Test-Client-Id": _uid()}
+    first = http.get("/default-exempt", headers=headers)
+    second = http.get("/default-exempt", headers=headers)
+    third = http.get("/default-exempt", headers=headers)
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert third.status_code == 200

@@ -36,6 +36,13 @@ def create_app() -> falcon.App:
             resp.status = falcon.HTTP_200
             resp.text = "CUSTOM OK"
 
+    class ExemptDecoratedResource:
+        @limiter.exempt
+        @limiter.rate_limit(requests=1, per=relativedelta(seconds=1))
+        def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.status = falcon.HTTP_200
+            resp.text = "EXEMPT OK"
+
     @limiter.rate_limit(requests=2, per=relativedelta(seconds=1))
     class ClassDecoratedResource:
         def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
@@ -56,6 +63,7 @@ def create_app() -> falcon.App:
     app.add_route("/test", TestResource())
     app.add_route("/per-client", PerClientResource())
     app.add_route("/custom-message", CustomMessageResource())
+    app.add_route("/exempt-decorated", ExemptDecoratedResource())
     app.add_route("/class-test", ClassDecoratedResource())
     app.add_route("/class-per-client", ClassPerClientResource())
     return app
@@ -91,6 +99,13 @@ def create_async_app() -> falcon.asgi.App:
             resp.status = falcon.HTTP_200
             resp.text = "ASYNC CUSTOM OK"
 
+    class AsyncExemptDecoratedResource:
+        @limiter.exempt
+        @limiter.rate_limit(requests=1, per=relativedelta(seconds=1))
+        async def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.status = falcon.HTTP_200
+            resp.text = "ASYNC EXEMPT OK"
+
     @limiter.rate_limit(requests=2, per=relativedelta(seconds=1))
     class AsyncClassDecoratedResource:
         async def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
@@ -101,6 +116,7 @@ def create_async_app() -> falcon.asgi.App:
     app.add_route("/async-test", AsyncTestResource())
     app.add_route("/async-per-client", AsyncPerClientResource())
     app.add_route("/async-custom-message", AsyncCustomMessageResource())
+    app.add_route("/async-exempt-decorated", AsyncExemptDecoratedResource())
     app.add_route("/async-class-test", AsyncClassDecoratedResource())
     return app
 
@@ -140,10 +156,17 @@ def create_middleware_app(
             resp.status = falcon.HTTP_200
             resp.text = "DEFAULT OK"
 
+    @limiter.exempt
+    class ExemptDefaultResource:
+        def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.status = falcon.HTTP_200
+            resp.text = "EXEMPT DEFAULT OK"
+
     app = falcon.App(middleware=[middleware])
     app.add_route("/middleware-test", MiddlewareProtectedResource())
     app.add_route("/middleware-decorated", DecoratedResource())
     app.add_route("/middleware-default", DefaultLimitedResource())
+    app.add_route("/middleware-exempt", ExemptDefaultResource())
     return app
 
 
@@ -182,8 +205,15 @@ def create_async_middleware_app(
             resp.status = falcon.HTTP_200
             resp.text = "ASYNC DEFAULT OK"
 
+    @limiter.exempt
+    class AsyncExemptDefaultResource:
+        async def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.status = falcon.HTTP_200
+            resp.text = "ASYNC EXEMPT DEFAULT OK"
+
     app = falcon.asgi.App(middleware=cast(list[Any], [middleware]))
     app.add_route("/async-middleware-test", AsyncMiddlewareProtectedResource())
     app.add_route("/async-middleware-decorated", AsyncDecoratedResource())
     app.add_route("/async-middleware-default", AsyncDefaultLimitedResource())
+    app.add_route("/async-middleware-exempt", AsyncExemptDefaultResource())
     return app
