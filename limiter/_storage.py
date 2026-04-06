@@ -11,6 +11,7 @@ from limiter.constants import (
     IN_MEMORY_FALLBACK_LOG_MESSAGE,
     PRIMARY_STORAGE_FAILED_DURING_REQUEST_MESSAGE,
     PRIMARY_STORAGE_RECOVERED_LOG_MESSAGE,
+    PRIMARY_STORAGE_STILL_UNAVAILABLE_LOG_MESSAGE,
     PRIMARY_STORAGE_UNAVAILABLE_MESSAGE,
 )
 
@@ -283,6 +284,7 @@ class StorageController:
             return
         probe_delay = self._schedule_next_recovery_probe()
         _STORAGE_LOGGER.warning(
-            "Primary rate limiter storage is still unavailable; next recovery probe in %.2f seconds.",
+            "%s %.2f seconds.",
+            PRIMARY_STORAGE_STILL_UNAVAILABLE_LOG_MESSAGE,
             probe_delay,
         )

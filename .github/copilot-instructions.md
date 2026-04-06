@@ -55,9 +55,9 @@ This repository implements a rate limiter for the Falcon web framework, wrapping
     -   Resolves the rate limit key (see Conventions).
     -   Checks the limit against the storage strategy.
 2.  **Limit Exceeded:**
-    -   Sets `resp.status` to `429 Too Many Requests`.
-    -   Sets `resp.text` to "Rate limit exceeded".
-    -   Returns `None` (halting further processing).
+    -   Raises `falcon.HTTPTooManyRequests`.
+    -   Lets Falcon handle serialization and response generation.
+    -   Includes the configured rejection message and retry metadata.
 3.  **Allowed:**
     -   Proceeds to execute the original responder method.
 

@@ -3,6 +3,10 @@ from limits import RateLimitItemPerSecond
 from limits.errors import StorageError
 from limits.storage import MemoryStorage, storage_from_string
 
+from limiter.constants import (
+    PRIMARY_STORAGE_RECOVERED_LOG_MESSAGE,
+    PRIMARY_STORAGE_STILL_UNAVAILABLE_LOG_MESSAGE,
+)
 from limiter._storage import StorageController
 
 
@@ -85,6 +89,46 @@ def test_storage_controller_falls_back_after_primary_error_and_recovers() -> Non
 
     storage.available = True
     assert controller.limiter_for_enforcement() is primary_limiter
+
+
+def test_storage_controller_logs_failed_recovery_probe(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    storage = FlakyMemoryStorage()
+    controller = StorageController(
+        storage=storage,
+        recovery_backoff_seconds=0.0,
+        max_recovery_backoff_seconds=0.0,
+    )
+    controller.activate_fallback_storage_for_error(
+        StorageError(RuntimeError("simulated storage outage"))
+    )
+
+    storage.available = False
+    with caplog.at_level("WARNING", logger="falcon-rate-limiter"):
+        controller.limiter_for_enforcement()
+
+    assert PRIMARY_STORAGE_STILL_UNAVAILABLE_LOG_MESSAGE in caplog.text
+
+
+def test_storage_controller_logs_primary_recovery(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    storage = FlakyMemoryStorage()
+    controller = StorageController(
+        storage=storage,
+        recovery_backoff_seconds=0.0,
+        max_recovery_backoff_seconds=0.0,
+    )
+    controller.activate_fallback_storage_for_error(
+        StorageError(RuntimeError("simulated storage outage"))
+    )
+
+    storage.available = True
+    with caplog.at_level("INFO", logger="falcon-rate-limiter"):
+        controller.limiter_for_enforcement()
+
+    assert PRIMARY_STORAGE_RECOVERED_LOG_MESSAGE in caplog.text
 
 
 def test_storage_controller_memory_uri_enforces_limits() -> None:

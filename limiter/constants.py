@@ -12,3 +12,6 @@ IN_MEMORY_FALLBACK_LOG_MESSAGE = "Switching rate limiter storage to in-memory fa
 PRIMARY_STORAGE_RECOVERED_LOG_MESSAGE = (
     "Primary rate limiter storage recovered; restoring configured backend."
 )
+PRIMARY_STORAGE_STILL_UNAVAILABLE_LOG_MESSAGE = (
+    "Primary rate limiter storage is still unavailable; next recovery probe in"
+)
