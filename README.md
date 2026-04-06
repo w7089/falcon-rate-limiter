@@ -395,6 +395,13 @@ app = falcon.asgi.App(middleware=[middleware])
 app.add_route("/async", AsyncResource())
 ```
 
+## Development and releases
+
+- Versions follow [Semantic Versioning](https://semver.org/).
+- Pull requests and pushes to `main` run the GitHub Actions CI workflow.
+- Creating a `vX.Y.Z` tag publishes the matching `pyproject.toml` version to PyPI.
+- Dependabot keeps `uv` dependencies and GitHub Actions versions up to date.
+
 ## Design notes
 
 - limits are backed by `limits.FixedWindowRateLimiter`
