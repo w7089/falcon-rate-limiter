@@ -9,6 +9,8 @@ import uuid
 
 import httpx
 
+from limiter.constants import DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
+
 
 def _uid() -> str:
     return str(uuid.uuid4())
@@ -36,7 +38,7 @@ def test_request_beyond_limit_returns_429(http: httpx.Client) -> None:
     resp = http.get("/limited", headers=headers)
     assert resp.status_code == 429
     body = resp.json()
-    assert body["description"] == "Rate limit exceeded"
+    assert body["description"] == DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
 
 
 def test_x_ratelimit_headers_present_on_allowed(http: httpx.Client) -> None:
@@ -118,3 +120,24 @@ def test_exempt_decorator_skips_default_limits(http: httpx.Client) -> None:
     assert first.status_code == 200
     assert second.status_code == 200
     assert third.status_code == 200
+
+
+def test_redis_storage_uri_enforces_limits(http: httpx.Client) -> None:
+    headers = {"X-Test-Client-Id": _uid()}
+    first = http.get("/redis-limited", headers=headers)
+    second = http.get("/redis-limited", headers=headers)
+    third = http.get("/redis-limited", headers=headers)
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert third.status_code == 429
+
+
+def test_redis_storage_keeps_client_counters_isolated(http: httpx.Client) -> None:
+    client_a = {"X-Test-Client-Id": _uid()}
+    client_b = {"X-Test-Client-Id": _uid()}
+
+    assert http.get("/redis-limited", headers=client_a).status_code == 200
+    assert http.get("/redis-limited", headers=client_a).status_code == 200
+    assert http.get("/redis-limited", headers=client_a).status_code == 429
+
+    assert http.get("/redis-limited", headers=client_b).status_code == 200

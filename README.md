@@ -11,8 +11,10 @@ Current implemented features include:
 - per-client keys via `key_func`
 - `429 Too Many Requests` errors via `falcon.HTTPTooManyRequests`
 - rate-limit response headers
+- URI-configured storage backends via `limits` (including Redis)
 - Falcon middleware-based automatic checks for undecorated routes
 - `@limiter.exempt` to skip explicit and default limits
+- in-memory fallback with recovery probing when primary storage is unavailable
 
 ## Installation
 
@@ -134,6 +136,50 @@ include standard rate-limit metadata:
 ```python
 limiter = FalconRateLimiter(headers_enabled=True)
 ```
+
+## Storage backends
+
+By default, the limiter uses in-memory storage:
+
+```python
+limiter = FalconRateLimiter()
+```
+
+You can also configure storage with a `limits` URI:
+
+```python
+limiter = FalconRateLimiter(storage_uri="memory://")
+```
+
+Redis-backed rate limiting uses the same constructor:
+
+```python
+limiter = FalconRateLimiter(storage_uri="redis://localhost:6379/0")
+```
+
+If you already created a `limits` storage object yourself, you can still pass
+it with `storage=...`. `storage` and `storage_uri` are mutually exclusive.
+
+### Storage resilience
+
+When a non-memory primary storage backend is unavailable during startup or
+request handling, the limiter switches to an in-memory fallback so requests can
+continue to be rate limited.
+
+While running on the fallback backend, the limiter periodically probes the
+configured primary storage using exponential backoff. Once the primary storage
+is healthy again, the limiter restores it automatically.
+
+```python
+limiter = FalconRateLimiter(
+    storage_uri="redis://localhost:6379/0",
+    recovery_backoff_seconds=1.0,
+    max_recovery_backoff_seconds=30.0,
+)
+```
+
+This fallback is intended for resilience, not shared consistency: while the
+application is using the in-memory fallback, counters are local to that process.
 
 ## Middleware-based rate limiting
 

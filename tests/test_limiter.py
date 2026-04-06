@@ -7,6 +7,10 @@ from falcon.asgi import App as ASGIApp
 from http import HTTPStatus
 
 from limiter import FalconRateLimitMiddleware
+from limiter.constants import (
+    DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE,
+    IN_MEMORY_FALLBACK_LOG_MESSAGE,
+)
 from limiter.core import FalconRateLimiter
 from tests.test_app import (
     create_app,
@@ -61,12 +65,28 @@ def test_rate_limit_allows_requests(client: TestClient) -> None:
     assert resp2.status_code == HTTP_200
 
 
+def test_memory_storage_uri_enforces_limits() -> None:
+    limiter = FalconRateLimiter(storage_uri="memory://", headers_enabled=False)
+
+    class MemoryUriResource:
+        @limiter.rate_limit(requests=1, per=relativedelta(seconds=1))
+        def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.text = "ok"
+
+    app = falcon.App()
+    app.add_route("/memory-uri", MemoryUriResource())
+    client = TestClient(app)
+
+    assert client.get("/memory-uri").status_code == HTTP_200
+    assert client.get("/memory-uri").status_code == HTTP_429
+
+
 def test_rate_limit_blocks_after_limit(client: TestClient) -> None:
     client.get("/test")
     client.get("/test")
     resp3 = client.get("/test")
     assert resp3.status_code == HTTP_429
-    assert resp3.json["description"] == "Rate limit exceeded"
+    assert resp3.json["description"] == DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
 
 
 def test_class_level_rate_limit_blocks_after_limit(client: TestClient) -> None:
@@ -77,7 +97,7 @@ def test_class_level_rate_limit_blocks_after_limit(client: TestClient) -> None:
     assert resp1.status_code == HTTP_200
     assert resp2.status_code == HTTP_200
     assert resp3.status_code == HTTP_429
-    assert resp3.json["description"] == "Rate limit exceeded"
+    assert resp3.json["description"] == DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
 
 
 def test_async_rate_limit_allows_requests(async_client: TestClient) -> None:
@@ -94,7 +114,7 @@ def test_async_rate_limit_blocks_after_limit(async_client: TestClient) -> None:
     resp3 = async_client.get("/async-test")
 
     assert resp3.status_code == HTTP_429
-    assert resp3.json["description"] == "Rate limit exceeded"
+    assert resp3.json["description"] == DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
 
 
 def test_async_class_level_rate_limit_blocks_after_limit(
@@ -107,7 +127,7 @@ def test_async_class_level_rate_limit_blocks_after_limit(
     assert resp1.status_code == HTTP_200
     assert resp2.status_code == HTTP_200
     assert resp3.status_code == HTTP_429
-    assert resp3.json["description"] == "Rate limit exceeded"
+    assert resp3.json["description"] == DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
 
 
 def test_per_client_keys_isolate_limits(client: TestClient) -> None:
@@ -120,7 +140,7 @@ def test_per_client_keys_isolate_limits(client: TestClient) -> None:
 
     assert first_a.status_code == HTTP_200
     assert second_a.status_code == HTTP_429
-    assert "Rate limit exceeded" in second_a.text
+    assert DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE in second_a.text
     assert first_b.status_code == HTTP_200
 
 
@@ -134,7 +154,7 @@ def test_per_client_keys_isolate_class_decorated_limits(client: TestClient) -> N
 
     assert first_a.status_code == HTTP_200
     assert second_a.status_code == HTTP_429
-    assert "Rate limit exceeded" in second_a.text
+    assert DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE in second_a.text
     assert first_b.status_code == HTTP_200
 
 
@@ -148,7 +168,7 @@ def test_async_per_client_keys_isolate_limits(async_client: TestClient) -> None:
 
     assert first_a.status_code == HTTP_200
     assert second_a.status_code == HTTP_429
-    assert second_a.json["description"] == "Rate limit exceeded"
+    assert second_a.json["description"] == DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
     assert first_b.status_code == HTTP_200
 
 
@@ -211,6 +231,30 @@ def test_exempt_decorator_supports_resource_instances() -> None:
 
     assert client.get("/instance-limited").status_code == HTTP_200
     assert client.get("/instance-limited").status_code == HTTP_429
+
+
+def test_unavailable_storage_uri_falls_back_to_memory(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    limiter = FalconRateLimiter(
+        storage_uri="redis://localhost:6399/0",
+        headers_enabled=False,
+    )
+
+    class FallbackResource:
+        @limiter.rate_limit(requests=1, per=relativedelta(seconds=1))
+        def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.text = "ok"
+
+    app = falcon.App()
+    app.add_route("/fallback", FallbackResource())
+    client = TestClient(app)
+
+    with caplog.at_level("WARNING", logger="falcon-rate-limiter"):
+        assert client.get("/fallback").status_code == HTTP_200
+        assert client.get("/fallback").status_code == HTTP_429
+
+    assert IN_MEMORY_FALLBACK_LOG_MESSAGE in caplog.text
 
 
 def test_rate_limit_headers_on_allowed_request(client: TestClient) -> None:
@@ -278,7 +322,7 @@ def test_middleware_blocks_undecorated_route(middleware_client: TestClient) -> N
 
     assert resp1.status_code == HTTP_200
     assert resp2.status_code == HTTP_429
-    assert resp2.json["description"] == "Rate limit exceeded"
+    assert resp2.json["description"] == DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
 
 
 def test_middleware_skips_decorated_route(middleware_client: TestClient) -> None:
@@ -289,7 +333,7 @@ def test_middleware_skips_decorated_route(middleware_client: TestClient) -> None
     assert resp1.status_code == HTTP_200
     assert resp2.status_code == HTTP_200
     assert resp3.status_code == HTTP_429
-    assert resp3.json["description"] == "Rate limit exceeded"
+    assert resp3.json["description"] == DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
 
 
 def test_middleware_respects_limit_undecorated_routes_toggle() -> None:
@@ -315,7 +359,7 @@ def test_default_limits_apply_to_undecorated_middleware_route() -> None:
 
     assert resp1.status_code == HTTP_200
     assert resp2.status_code == HTTP_429
-    assert resp2.json["description"] == "Rate limit exceeded"
+    assert resp2.json["description"] == DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
 
 
 def test_exempt_decorator_skips_default_middleware_limits() -> None:
@@ -343,7 +387,7 @@ def test_async_middleware_blocks_undecorated_route(
 
     assert resp1.status_code == HTTP_200
     assert resp2.status_code == HTTP_429
-    assert resp2.json["description"] == "Rate limit exceeded"
+    assert resp2.json["description"] == DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
 
 
 def test_async_middleware_skips_decorated_route(
@@ -356,7 +400,7 @@ def test_async_middleware_skips_decorated_route(
     assert resp1.status_code == HTTP_200
     assert resp2.status_code == HTTP_200
     assert resp3.status_code == HTTP_429
-    assert resp3.json["description"] == "Rate limit exceeded"
+    assert resp3.json["description"] == DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
 
 
 def test_async_middleware_respects_limit_undecorated_routes_toggle() -> None:
@@ -382,7 +426,7 @@ def test_async_default_limits_apply_to_undecorated_middleware_route() -> None:
 
     assert resp1.status_code == HTTP_200
     assert resp2.status_code == HTTP_429
-    assert resp2.json["description"] == "Rate limit exceeded"
+    assert resp2.json["description"] == DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
 
 
 def test_async_exempt_decorator_skips_default_middleware_limits() -> None:

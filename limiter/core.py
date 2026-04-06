@@ -4,8 +4,7 @@ from typing import Any, Callable
 
 import falcon
 from dateutil.relativedelta import relativedelta
-from limits.storage import MemoryStorage, Storage
-from limits.strategies import FixedWindowRateLimiter
+from limits.storage import Storage
 
 from limiter._helpers import (
     RateLimitDefinition,
@@ -16,6 +15,8 @@ from limiter._helpers import (
     _mark_rate_limited,
     _mark_rate_limit_exempt,
 )
+from limiter.constants import DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
+from limiter._storage import STORAGE_BACKEND_EXCEPTIONS, StorageController
 from limiter.utils import (
     _create_rate_limit_item,
     _get_remote_address,
@@ -30,26 +31,36 @@ class FalconRateLimiter:
 
     Args:
         storage: Backend storage for rate limit counters. Defaults to in-memory.
+        storage_uri: Storage URI resolved by ``limits`` (for example
+            ``"memory://"`` or ``"redis://localhost:6379/0"``).
         key_func: Default function to extract client identifiers from requests.
         default_requests: Default limit count for middleware (requires default_per).
         default_per: Default time window for middleware (requires default_requests).
         headers_enabled: Whether to add X-RateLimit-* headers to responses.
         limit_undecorated_routes: Whether middleware should limit undecorated routes.
+        recovery_backoff_seconds: Initial delay before probing failed primary
+            storage for recovery.
+        max_recovery_backoff_seconds: Maximum delay between recovery probes.
     """
 
     def __init__(
         self,
         storage: Storage | None = None,
+        storage_uri: str | None = None,
         key_func: Callable[[falcon.Request], str] | None = None,
         default_requests: int | None = None,
         default_per: relativedelta | None = None,
         headers_enabled: bool = True,
         limit_undecorated_routes: bool = True,
+        recovery_backoff_seconds: float = 1.0,
+        max_recovery_backoff_seconds: float = 60.0,
     ) -> None:
-        if storage is None:
-            storage = MemoryStorage()
-        self._storage = storage
-        self._limiter = FixedWindowRateLimiter(self._storage)
+        self._storage_controller = StorageController(
+            storage=storage,
+            storage_uri=storage_uri,
+            recovery_backoff_seconds=recovery_backoff_seconds,
+            max_recovery_backoff_seconds=max_recovery_backoff_seconds,
+        )
         self._key_func = key_func
         self._default_limit = self._create_default_limit(default_requests, default_per)
         self._headers_enabled = headers_enabled
@@ -115,7 +126,7 @@ class FalconRateLimiter:
             requests=default_requests,
             rate_limit_item=_create_rate_limit_item(default_requests, default_per),
             key_func=self._resolve_key_func(None),
-            rejection_message="Rate limit exceeded",
+            rejection_message=DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE,
         )
 
     def create_limit(
@@ -140,7 +151,7 @@ class FalconRateLimiter:
             requests=requests,
             rate_limit_item=_create_rate_limit_item(requests, per),
             key_func=self._resolve_key_func(key_func),
-            rejection_message=error_message or "Rate limit exceeded",
+            rejection_message=error_message or DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE,
         )
 
     def enforce_limit(
@@ -161,14 +172,27 @@ class FalconRateLimiter:
         Raises:
             falcon.HTTPTooManyRequests: When the rate limit is exceeded.
         """
-        _check_rate_limit(
-            self._limiter,
-            limit,
-            self._headers_enabled,
-            scope,
-            req,
-            resp,
-        )
+        limiter = self._storage_controller.limiter_for_enforcement()
+        try:
+            _check_rate_limit(
+                limiter,
+                limit,
+                self._headers_enabled,
+                scope,
+                req,
+                resp,
+            )
+        except STORAGE_BACKEND_EXCEPTIONS as exc:
+            if not self._storage_controller.activate_fallback_storage_for_error(exc):
+                raise
+            _check_rate_limit(
+                self._storage_controller.current_limiter,
+                limit,
+                self._headers_enabled,
+                scope,
+                req,
+                resp,
+            )
 
     def enforce_limits(
         self,
@@ -212,14 +236,27 @@ class FalconRateLimiter:
         Raises:
             falcon.HTTPTooManyRequests: When the rate limit is exceeded.
         """
-        await _check_rate_limit_async(
-            self._limiter,
-            limit,
-            self._headers_enabled,
-            scope,
-            req,
-            resp,
-        )
+        limiter = self._storage_controller.limiter_for_enforcement()
+        try:
+            await _check_rate_limit_async(
+                limiter,
+                limit,
+                self._headers_enabled,
+                scope,
+                req,
+                resp,
+            )
+        except STORAGE_BACKEND_EXCEPTIONS as exc:
+            if not self._storage_controller.activate_fallback_storage_for_error(exc):
+                raise
+            await _check_rate_limit_async(
+                self._storage_controller.current_limiter,
+                limit,
+                self._headers_enabled,
+                scope,
+                req,
+                resp,
+            )
 
     async def enforce_limits_async(
         self,

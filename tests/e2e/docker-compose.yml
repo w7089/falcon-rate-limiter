@@ -1,10 +1,25 @@
-version: "3.3"
+version: "2.4"
 
 services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
   app:
     build:
       context: ../..
       dockerfile: tests/e2e/app/Dockerfile
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_STORAGE_URI: redis://redis:6379/0
     ports:
       - "8765:8080"
     security_opt:

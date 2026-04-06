@@ -5,12 +5,17 @@ Client isolation: every request must include an X-Test-Client-Id header.
 Each test generates a unique UUID so counters never bleed across tests.
 """
 
+import os
+
 import falcon
 from dateutil.relativedelta import relativedelta
 
 from limiter import FalconRateLimitMiddleware, FalconRateLimiter
 
 limiter = FalconRateLimiter()
+redis_limiter = FalconRateLimiter(
+    storage_uri=os.getenv("REDIS_STORAGE_URI", "redis://redis:6379/0")
+)
 
 
 def _client_key(req: falcon.Request) -> str:
@@ -64,6 +69,18 @@ class DefaultLimitedResource:
         resp.media = {"message": "default ok"}
 
 
+class RedisLimitedResource:
+    """2 requests per minute using Redis-backed shared storage."""
+
+    @redis_limiter.rate_limit(
+        requests=2,
+        per=relativedelta(minutes=1),
+        key_func=_client_key,
+    )
+    def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+        resp.media = {"message": "redis ok"}
+
+
 @default_limiter.exempt
 class ExemptDefaultResource:
     def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
@@ -76,4 +93,5 @@ application.add_route("/limited", LimitedResource())
 application.add_route("/headers", HeadersResource())
 application.add_route("/custom-error", CustomErrorResource())
 application.add_route("/default-limited", DefaultLimitedResource())
+application.add_route("/redis-limited", RedisLimitedResource())
 application.add_route("/default-exempt", ExemptDefaultResource())
