@@ -12,11 +12,11 @@ ENV UV_PROJECT_ENVIRONMENT=/usr/local
 # Install dependencies from lockfile first — this layer is cached unless
 # pyproject.toml or uv.lock change, even when library source changes.
 COPY pyproject.toml uv.lock ./
-RUN uv sync --no-dev --no-install-project
+RUN uv sync --no-dev --group e2e --no-install-project
 
 # Copy library source and install the project itself
 COPY limiter/ ./limiter/
-RUN uv sync --no-dev
+RUN uv sync --no-dev --group e2e
 
 # Copy the e2e app entrypoint
 COPY tests/e2e/app/app.py ./app.py
