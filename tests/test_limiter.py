@@ -660,3 +660,51 @@ def test_exempt_decorator_supports_middleware_resource_instances() -> None:
 
     assert client.get("/middleware-instance-limited").status_code == HTTP_200
     assert client.get("/middleware-instance-limited").status_code == HTTP_429
+
+
+# --- Native async vs thread-pool fallback ---
+
+
+def test_native_async_path_does_not_use_to_thread(
+    async_client: TestClient,
+) -> None:
+    """When async support is active, asyncio.to_thread should not be called."""
+    from unittest.mock import patch
+
+    with patch("limiter._helpers.asyncio.to_thread") as mock_to_thread:
+        resp1 = async_client.get("/async-test")
+        resp2 = async_client.get("/async-test")
+        resp3 = async_client.get("/async-test")
+
+    assert resp1.status_code == HTTP_200
+    assert resp2.status_code == HTTP_200
+    assert resp3.status_code == HTTP_429
+    mock_to_thread.assert_not_called()
+
+
+def test_thread_pool_fallback_when_explicit_storage() -> None:
+    """When an explicit Storage instance is passed, async falls back to to_thread."""
+    from unittest.mock import AsyncMock, patch
+    from limits.storage import MemoryStorage
+
+    limiter = FalconRateLimiter(storage=MemoryStorage())
+    assert limiter._storage_controller.has_async_support is False
+
+    class AsyncResource:
+        @limiter.rate_limit(requests=2, per=relativedelta(seconds=1))
+        async def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.text = "ok"
+
+    app = falcon.asgi.App()
+    app.add_route("/thread-fallback", AsyncResource())
+    client = TestClient(app)
+
+    with patch(
+        "limiter._helpers.asyncio.to_thread",
+        new_callable=AsyncMock,
+    ) as mock_to_thread:
+        mock_to_thread.return_value = (True, None)
+        resp = client.get("/thread-fallback")
+
+    assert resp.status_code == HTTP_200
+    mock_to_thread.assert_called()

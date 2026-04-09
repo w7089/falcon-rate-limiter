@@ -19,6 +19,7 @@ from limiter._helpers import (
     RateLimitDefinition,
     _check_rate_limit,
     _check_rate_limit_async,
+    _check_rate_limit_via_thread,
     _get_request_response,
     _is_rate_limit_exempt,
     _mark_rate_limited,
@@ -417,8 +418,9 @@ class FalconRateLimiter:
     ) -> None:
         """Enforce a rate limit asynchronously.
 
-        Blocking storage calls are offloaded to a thread pool to avoid
-        blocking the event loop in ASGI applications.
+        Uses native ``limits.aio`` coroutines when the storage was configured
+        via URI.  Falls back to ``asyncio.to_thread`` when the caller provided
+        an explicit sync ``Storage`` instance.
 
         Args:
             limit: The limit definition to enforce.
@@ -431,38 +433,79 @@ class FalconRateLimiter:
         """
         if not self._enabled:
             return
-        limiter = self._storage_controller.limiter_for_enforcement()
-        try:
-            await _check_rate_limit_async(
-                limiter,
-                limit,
-                self._headers_enabled,
-                scope,
-                req,
-                resp,
-            )
-        except STORAGE_BACKEND_EXCEPTIONS as exc:
-            if not self._storage_controller.activate_fallback_storage_for_error(exc):
-                if self._swallow_enforcement_error(exc, scope):
-                    return
-                raise
+
+        if self._storage_controller.has_async_support:
+            limiter = await self._storage_controller.async_limiter_for_enforcement()
             try:
                 await _check_rate_limit_async(
-                    self._storage_controller.current_limiter,
+                    limiter,
                     limit,
                     self._headers_enabled,
                     scope,
                     req,
                     resp,
                 )
-            except STORAGE_BACKEND_EXCEPTIONS as retry_exc:
-                if self._swallow_enforcement_error(retry_exc, scope):
+            except STORAGE_BACKEND_EXCEPTIONS as exc:
+                if not self._storage_controller.activate_fallback_storage_for_error(
+                    exc
+                ):
+                    if self._swallow_enforcement_error(exc, scope):
+                        return
+                    raise
+                try:
+                    fallback = self._storage_controller.async_current_limiter
+                    assert fallback is not None
+                    await _check_rate_limit_async(
+                        fallback,
+                        limit,
+                        self._headers_enabled,
+                        scope,
+                        req,
+                        resp,
+                    )
+                except STORAGE_BACKEND_EXCEPTIONS as retry_exc:
+                    if self._swallow_enforcement_error(retry_exc, scope):
+                        return
+                    raise
+            except ValueError as exc:
+                if self._swallow_enforcement_error(exc, scope):
                     return
                 raise
-        except ValueError as exc:
-            if self._swallow_enforcement_error(exc, scope):
-                return
-            raise
+        else:
+            sync_limiter = self._storage_controller.limiter_for_enforcement()
+            try:
+                await _check_rate_limit_via_thread(
+                    sync_limiter,
+                    limit,
+                    self._headers_enabled,
+                    scope,
+                    req,
+                    resp,
+                )
+            except STORAGE_BACKEND_EXCEPTIONS as exc:
+                if not self._storage_controller.activate_fallback_storage_for_error(
+                    exc
+                ):
+                    if self._swallow_enforcement_error(exc, scope):
+                        return
+                    raise
+                try:
+                    await _check_rate_limit_via_thread(
+                        self._storage_controller.current_limiter,
+                        limit,
+                        self._headers_enabled,
+                        scope,
+                        req,
+                        resp,
+                    )
+                except STORAGE_BACKEND_EXCEPTIONS as retry_exc:
+                    if self._swallow_enforcement_error(retry_exc, scope):
+                        return
+                    raise
+            except ValueError as exc:
+                if self._swallow_enforcement_error(exc, scope):
+                    return
+                raise
 
     async def enforce_limits_async(
         self,

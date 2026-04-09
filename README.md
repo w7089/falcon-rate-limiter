@@ -7,7 +7,7 @@ Current implemented features include:
 
 - decorator-based rate limiting for Falcon responders
 - class-level rate limiting for Falcon resources
-- sync and async (ASGI) responder support
+- sync and async (ASGI) responder support with native `limits.aio` coroutines
 - per-client keys via `key_func`
 - `429 Too Many Requests` errors via `falcon.HTTPTooManyRequests`
 - rate-limit response headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`)
@@ -522,8 +522,14 @@ Behavior:
 
 ## ASGI / async responders
 
-Async Falcon responders are supported. The underlying synchronous `limits`
-operations are executed in a worker thread so the event loop is not blocked.
+Async Falcon responders are fully supported with **native async** rate
+limiting via `limits.aio`.  When the storage backend is configured through a
+URI (the default), all `hit()` and `get_window_stats()` calls are real
+`await`-able coroutines — no thread-pool overhead.
+
+If you pass an explicit `Storage` instance instead of a URI, the library
+automatically falls back to `asyncio.to_thread` so the event loop is never
+blocked.
 
 ```python
 import falcon.asgi
@@ -557,8 +563,9 @@ app.add_route("/async", AsyncResource())
 
 ## Design notes
 
-- limits are backed by `limits.FixedWindowRateLimiter`
+- rate-limiting strategies are configurable (`fixed-window`, `moving-window`, `sliding-window-counter`)
 - in-memory storage is used by default
+- ASGI apps use native `limits.aio` coroutines; `asyncio.to_thread` is the fallback
 - rejected requests raise `falcon.HTTPTooManyRequests`
 - middleware can use explicit limits or the limiter's default limit
 - `@limiter.exempt` bypasses both decorator and middleware-based checks

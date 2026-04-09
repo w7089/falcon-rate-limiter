@@ -17,6 +17,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Strategy selection: `strategy` parameter supporting `"fixed-window"`,
   `"moving-window"`, and `"sliding-window-counter"` (via constructor or
   `RATELIMIT_STRATEGY` env var)
+- Native async support using `limits.aio`: ASGI apps now use real async
+  coroutines (`await limiter.hit()`) instead of `asyncio.to_thread`,
+  with automatic thread-pool fallback when an explicit `Storage` instance
+  is provided
 
 ### Changed
 - `get_remote_address` is now a public export (previously `_get_remote_address`)

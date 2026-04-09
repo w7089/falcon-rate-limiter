@@ -224,3 +224,122 @@ def test_storage_controller_fallback_uses_same_strategy() -> None:
     )
 
     assert isinstance(controller.current_limiter, MovingWindowRateLimiter)
+
+
+# --- Native async support ---
+
+
+def test_storage_controller_has_async_support_when_uri_based() -> None:
+    controller = StorageController()
+
+    assert controller.has_async_support is True
+
+
+def test_storage_controller_has_async_support_with_explicit_uri() -> None:
+    controller = StorageController(storage_uri="memory://")
+
+    assert controller.has_async_support is True
+
+
+def test_storage_controller_no_async_support_with_explicit_storage() -> None:
+    controller = StorageController(storage=MemoryStorage())
+
+    assert controller.has_async_support is False
+    assert controller.async_current_limiter is None
+
+
+@pytest.mark.anyio
+async def test_async_limiter_for_enforcement_returns_async_limiter() -> None:
+    from limits.aio.strategies import FixedWindowRateLimiter as AsyncFWRL
+
+    controller = StorageController()
+    limiter = await controller.async_limiter_for_enforcement()
+
+    assert isinstance(limiter, AsyncFWRL)
+
+
+@pytest.mark.anyio
+async def test_async_limiter_enforces_limits() -> None:
+    controller = StorageController()
+    limiter = await controller.async_limiter_for_enforcement()
+    item = RateLimitItemPerSecond(1)
+
+    assert await limiter.hit(item, "async-key") is True
+    assert await limiter.hit(item, "async-key") is False
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("strategy_name", "expected_class_name"),
+    [
+        ("fixed-window", "FixedWindowRateLimiter"),
+        ("moving-window", "MovingWindowRateLimiter"),
+        ("sliding-window-counter", "SlidingWindowCounterRateLimiter"),
+    ],
+)
+async def test_async_limiter_uses_configured_strategy(
+    strategy_name: str,
+    expected_class_name: str,
+) -> None:
+    controller = StorageController(strategy=strategy_name)
+    limiter = await controller.async_limiter_for_enforcement()
+
+    assert type(limiter).__name__ == expected_class_name
+
+
+@pytest.mark.anyio
+async def test_async_fallback_recovery_after_primary_error() -> None:
+    storage = FlakyMemoryStorage()
+    controller = StorageController(
+        storage=storage,
+        recovery_backoff_seconds=0.0,
+        max_recovery_backoff_seconds=0.0,
+    )
+    # Explicit Storage → no native async; just verify sync fallback still works
+    assert controller.has_async_support is False
+
+    controller.activate_fallback_storage_for_error(
+        StorageError(RuntimeError("simulated"))
+    )
+    assert controller.current_limiter is not controller._primary_limiter
+
+    storage.available = True
+    _ = controller.limiter_for_enforcement()
+    assert controller.current_limiter is controller._primary_limiter
+
+
+@pytest.mark.anyio
+async def test_async_recovery_probing_uses_async_check() -> None:
+    """When async support is active, recovery probing uses async storage check."""
+    from unittest.mock import patch
+
+    controller = StorageController(
+        storage_uri="memory://",
+        recovery_backoff_seconds=0.0,
+        max_recovery_backoff_seconds=0.0,
+    )
+    assert controller.has_async_support is True
+
+    # Force into fallback state through the proper API
+    controller._switch_to_fallback_storage("test reason")
+    controller._next_recovery_probe_at = 0.0
+
+    # Memory primary makes recovery probing a no-op (_is_memory_storage).
+    # Temporarily bypass that guard to exercise the async probe path.
+    with patch.object(StorageController, "_is_memory_storage", return_value=False):
+        limiter = await controller.async_limiter_for_enforcement()
+
+    assert controller._using_fallback_storage is False
+    assert limiter is controller._async_primary_limiter
+
+
+@pytest.mark.anyio
+async def test_async_fallback_limiter_created_on_switch() -> None:
+    controller = StorageController(storage_uri="memory://")
+    assert controller._async_fallback_limiter is None
+
+    # Simulate primary failure by manually switching
+    controller._switch_to_fallback_storage("test reason")
+
+    assert controller._async_fallback_limiter is not None
+    assert controller.async_current_limiter is controller._async_fallback_limiter

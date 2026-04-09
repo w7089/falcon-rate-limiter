@@ -10,6 +10,7 @@ from typing import Any, Callable, cast
 
 import falcon
 from limits import RateLimitItem
+from limits.aio.strategies import RateLimiter as AsyncRateLimiter
 from limits.strategies import RateLimiter
 from limits.util import WindowStats
 
@@ -331,6 +332,55 @@ def _check_rate_limit(
 
 
 async def _check_rate_limit_async(
+    limiter: AsyncRateLimiter,
+    resolved_limit: RateLimitDefinition,
+    headers_enabled: bool,
+    scope: str,
+    req: falcon.Request,
+    resp: falcon.Response,
+) -> None:
+    """Check and enforce a rate limit using native async ``limits.aio``.
+
+    Uses ``await limiter.hit()`` and ``await limiter.get_window_stats()``
+    directly, avoiding the overhead of ``asyncio.to_thread``.
+
+    Args:
+        limiter: The async rate limiter strategy from ``limits.aio.strategies``.
+        resolved_limit: The limit definition containing the rate and key func.
+        headers_enabled: Whether to add X-RateLimit-* headers to the response.
+        scope: Identifier for the endpoint (usually ``__qualname__``).
+        req: The incoming Falcon request.
+        resp: The Falcon response (headers may be modified).
+
+    Raises:
+        falcon.HTTPTooManyRequests: When the rate limit is exceeded.
+    """
+    if not _request_method_matches_limit(req, resolved_limit):
+        return
+    if _request_is_exempt_from_limit(req, resolved_limit):
+        return
+
+    cost = _request_cost(req, resolved_limit)
+    key = _build_rate_limit_key(
+        req,
+        _scope_for_limit(req, scope, resolved_limit),
+        resolved_limit.key_func,
+    )
+    allowed = await limiter.hit(resolved_limit.rate_limit_item, key, cost=cost)
+    stats: WindowStats | None = None
+    if headers_enabled or not allowed:
+        stats = await limiter.get_window_stats(resolved_limit.rate_limit_item, key)
+    if headers_enabled and stats is not None:
+        _set_rate_limit_headers(resp, stats, resolved_limit.requests)
+    if not allowed:
+        _LIMITER_LOGGER.info("%s %s", RATE_LIMIT_EXCEEDED_LOG_MESSAGE, key)
+        raise falcon.HTTPTooManyRequests(
+            description=resolved_limit.rejection_message,
+            retry_after=_retry_after_seconds(stats),
+        )
+
+
+async def _check_rate_limit_via_thread(
     limiter: RateLimiter,
     resolved_limit: RateLimitDefinition,
     headers_enabled: bool,
@@ -338,11 +388,11 @@ async def _check_rate_limit_async(
     req: falcon.Request,
     resp: falcon.Response,
 ) -> None:
-    """Check and enforce a rate limit asynchronously.
+    """Check and enforce a rate limit by offloading to a thread pool.
 
-    The ``limits`` library is synchronous, so blocking calls are offloaded
-    to a thread pool via ``asyncio.to_thread`` to avoid blocking the event
-    loop in ASGI applications.
+    Fallback for ASGI applications when native async storage is not available
+    (e.g. when the caller passed an explicit sync ``Storage`` instance).
+    Blocking ``limits`` calls are run via ``asyncio.to_thread``.
 
     Args:
         limiter: The rate limiter strategy instance.

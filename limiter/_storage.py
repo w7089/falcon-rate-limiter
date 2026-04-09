@@ -6,6 +6,10 @@ import logging
 import time
 from typing import cast
 
+from limits.aio.storage import MemoryStorage as AsyncMemoryStorage
+from limits.aio.storage import Storage as AsyncStorage
+from limits.aio.strategies import STRATEGIES as ASYNC_STRATEGIES
+from limits.aio.strategies import RateLimiter as AsyncRateLimiter
 from limits.errors import StorageError
 from limits.storage import MemoryStorage, Storage, storage_from_string
 from limits.strategies import STRATEGIES, RateLimiter
@@ -78,6 +82,51 @@ def _resolve_strategy(strategy: str) -> type[RateLimiter]:
     return STRATEGIES[strategy]
 
 
+_REDIS_URI_SCHEMES = ("redis://", "rediss://", "redis+sentinel://", "redis+cluster://")
+
+
+def _resolve_async_storage(storage_uri: str | None) -> AsyncStorage:
+    """Create an async storage backend from a storage URI.
+
+    Prepends ``async+`` to the URI so that ``limits.storage.storage_from_string``
+    returns an async-capable backend.  For Redis URIs the ``redispy``
+    implementation is selected so the existing ``redis`` package (with
+    ``redis.asyncio``) is used instead of requiring ``coredis``.
+
+    Args:
+        storage_uri: URI for the storage backend (e.g. ``"redis://localhost"``).
+            When ``None``, defaults to ``"memory://"``.
+
+    Returns:
+        An async storage backend.
+    """
+    uri = storage_uri or "memory://"
+    async_uri = uri if uri.startswith("async+") else f"async+{uri}"
+    kwargs: dict[str, str] = {}
+    if uri.removeprefix("async+").startswith(_REDIS_URI_SCHEMES):
+        kwargs["implementation"] = "redispy"
+    return cast(AsyncStorage, storage_from_string(async_uri, **kwargs))
+
+
+def _resolve_async_strategy(strategy: str) -> type[AsyncRateLimiter]:
+    """Return the async ``limits`` strategy class for a strategy name.
+
+    Args:
+        strategy: Strategy name (e.g. ``"fixed-window"``).
+
+    Returns:
+        The async ``limits`` strategy class corresponding to the name.
+
+    Raises:
+        ValueError: When the strategy name is not supported.
+    """
+    if strategy not in ASYNC_STRATEGIES:
+        raise ValueError(
+            INVALID_STRATEGY_MESSAGE.format(strategy, sorted(SUPPORTED_STRATEGIES))
+        )
+    return ASYNC_STRATEGIES[strategy]
+
+
 class StorageController:
     """Manage primary storage, in-memory fallback, and recovery probing.
 
@@ -119,6 +168,32 @@ class StorageController:
         self._next_recovery_probe_at = 0.0
         self._using_fallback_storage = False
 
+        # Native async support is available when storage is resolved from a URI
+        # (not an explicit Storage instance), because we can derive the async
+        # URI by prepending ``async+``.
+        self._has_async_support = storage is None
+        self._async_primary_storage: AsyncStorage | None = None
+        self._async_primary_limiter: AsyncRateLimiter | None = None
+        self._async_strategy_class: type[AsyncRateLimiter] | None = None
+        self._async_fallback_storage: AsyncMemoryStorage | None = None
+        self._async_fallback_limiter: AsyncRateLimiter | None = None
+
+        if self._has_async_support:
+            try:
+                self._async_primary_storage = _resolve_async_storage(storage_uri)
+                self._async_strategy_class = _resolve_async_strategy(strategy)
+                self._async_primary_limiter = self._async_strategy_class(
+                    self._async_primary_storage
+                )
+            except Exception as exc:
+                _STORAGE_LOGGER.warning(
+                    "Failed to create async storage backend (%s: %s). "
+                    "Async requests will use thread-pool fallback.",
+                    exc.__class__.__name__,
+                    exc,
+                )
+                self._has_async_support = False
+
         if not self._is_memory_storage(
             self._primary_storage
         ) and not self._is_available(self._primary_storage):
@@ -154,6 +229,49 @@ class StorageController:
         """
         self._restore_primary_storage_if_recovery_probe_is_due()
         return self.current_limiter
+
+    @property
+    def has_async_support(self) -> bool:
+        """Whether native async rate limiting is available.
+
+        Native async is available when the storage backend was resolved from
+        a URI (not an explicit ``Storage`` instance), because the async
+        storage can be derived automatically.
+        """
+        return self._has_async_support
+
+    @property
+    def async_current_limiter(self) -> AsyncRateLimiter | None:
+        """Return the async limiter that is currently active.
+
+        Returns:
+            The async limiter currently bound to the selected storage backend,
+            or ``None`` when native async support is not available.
+        """
+        if not self._has_async_support:
+            return None
+        if self._using_fallback_storage:
+            return self._async_fallback_limiter
+        return self._async_primary_limiter
+
+    async def async_limiter_for_enforcement(self) -> AsyncRateLimiter:
+        """Return the async rate limiter that should handle the current request.
+
+        Must only be called when :attr:`has_async_support` is ``True``.
+
+        Returns:
+            The async primary limiter when it is available, otherwise the async
+            in-memory fallback limiter.
+
+        Raises:
+            AssertionError: When async support is not available.
+        """
+        await self._restore_primary_if_recovery_probe_is_due_async()
+        limiter = self.async_current_limiter
+        assert limiter is not None, (
+            "async limiter unavailable; check has_async_support first"
+        )
+        return limiter
 
     def activate_fallback_storage_for_error(self, error: BaseException) -> bool:
         """Switch to fallback storage for a primary storage failure.
@@ -241,6 +359,16 @@ class StorageController:
             self._fallback_storage = MemoryStorage()
         if self._fallback_limiter is None:
             self._fallback_limiter = self._strategy_class(self._fallback_storage)
+        if self._has_async_support:
+            if self._async_fallback_storage is None:
+                self._async_fallback_storage = AsyncMemoryStorage()
+            if (
+                self._async_fallback_limiter is None
+                and self._async_strategy_class is not None
+            ):
+                self._async_fallback_limiter = self._async_strategy_class(
+                    self._async_fallback_storage
+                )
         self._using_fallback_storage = True
         self._current_recovery_backoff_seconds = self._recovery_backoff_seconds
         probe_delay = self._schedule_next_recovery_probe()
@@ -312,6 +440,49 @@ class StorageController:
         ):
             return
         if self._is_available(self._primary_storage):
+            self._restore_primary_storage()
+            return
+        probe_delay = self._schedule_next_recovery_probe()
+        _STORAGE_LOGGER.warning(
+            "%s %.2f seconds.",
+            PRIMARY_STORAGE_STILL_UNAVAILABLE_LOG_MESSAGE,
+            probe_delay,
+        )
+
+    # ------------------------------------------------------------------
+    # Async health-check and recovery probing
+    # ------------------------------------------------------------------
+
+    async def _is_available_async(self, storage: AsyncStorage) -> bool:
+        """Return whether an async storage backend is healthy enough to use.
+
+        Args:
+            storage: Async storage backend whose health should be checked.
+
+        Returns:
+            ``True`` when ``await storage.check()`` succeeds and reports
+            healthy, otherwise ``False``.
+        """
+        try:
+            return bool(await storage.check())
+        except STORAGE_BACKEND_EXCEPTIONS:
+            return False
+
+    async def _restore_primary_if_recovery_probe_is_due_async(self) -> None:
+        """Async counterpart of :meth:`_restore_primary_storage_if_recovery_probe_is_due`.
+
+        Uses the async primary storage's ``check()`` coroutine instead of a
+        synchronous call.  Timing, backoff, and the shared
+        ``_using_fallback_storage`` flag are identical to the sync path.
+        """
+        if (
+            not self._using_fallback_storage
+            or self._is_memory_storage(self._primary_storage)
+            or time.monotonic() < self._next_recovery_probe_at
+        ):
+            return
+        assert self._async_primary_storage is not None
+        if await self._is_available_async(self._async_primary_storage):
             self._restore_primary_storage()
             return
         probe_delay = self._schedule_next_recovery_probe()

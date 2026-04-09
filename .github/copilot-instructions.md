@@ -47,7 +47,7 @@ This repository implements a rate limiter for the Falcon web framework, wrapping
   - **Individual Responder Methods:** (e.g., `on_get`, `on_post`).
   - **Resource Classes:** Automatically decorates all methods starting with `on_` within the class.
 - **Storage:** Uses `limits.storage.MemoryStorage` by default but supports any storage backend from the `limits` library (e.g., Redis).
-- **Async Support:** Detects `async` responders via `inspect.iscoroutinefunction` and wraps them to run the synchronous `limits` check in a thread pool (`asyncio.to_thread`) to avoid blocking the event loop.
+- **Async Support:** When the storage backend is resolved from a URI (the default), ASGI responders use native `limits.aio` coroutines for zero-overhead async rate limiting. When an explicit `Storage` instance is provided, the library falls back to `asyncio.to_thread` automatically.
 
 ### Request Flow
 1.  **Decorator Execution:**
