@@ -135,6 +135,8 @@ class FalconRateLimiter:
         per: relativedelta,
         key_func: Callable[[falcon.Request], str] | None = None,
         error_message: str | None = None,
+        methods: list[str] | tuple[str, ...] | None = None,
+        per_method: bool = False,
     ) -> RateLimitDefinition:
         """Create a reusable rate limit definition.
 
@@ -143,6 +145,9 @@ class FalconRateLimiter:
             per: Time window duration (e.g., ``relativedelta(minutes=1)``).
             key_func: Optional override for the client key extraction function.
             error_message: Custom message for HTTP 429 responses.
+            methods: Optional HTTP methods that should trigger the limit.
+            per_method: Whether requests that share the same responder should
+                keep separate counters per HTTP method.
 
         Returns:
             A ``RateLimitDefinition`` that can be passed to ``enforce_limit``.
@@ -152,7 +157,33 @@ class FalconRateLimiter:
             rate_limit_item=_create_rate_limit_item(requests, per),
             key_func=self._resolve_key_func(key_func),
             rejection_message=error_message or DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE,
+            methods=self._normalize_methods(methods),
+            per_method=per_method,
         )
+
+    @staticmethod
+    def _normalize_methods(
+        methods: list[str] | tuple[str, ...] | None,
+    ) -> frozenset[str] | None:
+        """Normalize an optional method filter to uppercase method names.
+
+        Args:
+            methods: Optional iterable of HTTP methods such as ``["GET", "POST"]``.
+
+        Returns:
+            ``None`` when no filter is configured, otherwise a frozenset of
+            uppercase method names.
+
+        Raises:
+            ValueError: When the list is empty or contains blank method names.
+        """
+
+        if methods is None:
+            return None
+        normalized_methods = frozenset(method.upper() for method in methods if method)
+        if not normalized_methods:
+            raise ValueError("methods must contain at least one HTTP method")
+        return normalized_methods
 
     def enforce_limit(
         self,
@@ -343,6 +374,8 @@ class FalconRateLimiter:
         per: relativedelta,
         key_func: Callable[[falcon.Request], str] | None = None,
         error_message: str | None = None,
+        methods: list[str] | tuple[str, ...] | None = None,
+        per_method: bool = False,
     ) -> Callable[[Any], Any]:
         """Decorator to apply a rate limit to a responder or resource class.
 
@@ -355,6 +388,9 @@ class FalconRateLimiter:
             per: Time window duration (e.g., ``relativedelta(seconds=10)``).
             key_func: Optional override for client key extraction.
             error_message: Custom message for HTTP 429 responses.
+            methods: Optional HTTP methods that should trigger the limit.
+            per_method: Whether requests that share the same responder should
+                keep separate counters per HTTP method.
 
         Returns:
             A decorator that wraps the target with rate limit enforcement.
@@ -370,6 +406,8 @@ class FalconRateLimiter:
             per=per,
             key_func=key_func,
             error_message=error_message,
+            methods=methods,
+            per_method=per_method,
         )
 
         def decorator(target: Any) -> Any:

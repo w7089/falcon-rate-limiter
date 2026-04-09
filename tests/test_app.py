@@ -36,9 +36,44 @@ def create_app() -> falcon.App:
             resp.status = falcon.HTTP_200
             resp.text = "CUSTOM OK"
 
+    class MethodFilteredResource:
+        @limiter.rate_limit(
+            requests=1,
+            per=relativedelta(seconds=1),
+            methods=["POST"],
+        )
+        def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.status = falcon.HTTP_200
+            resp.text = "METHOD FILTER GET OK"
+
+        @limiter.rate_limit(
+            requests=1,
+            per=relativedelta(seconds=1),
+            methods=["POST"],
+        )
+        def on_post(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.status = falcon.HTTP_200
+            resp.text = "METHOD FILTER POST OK"
+
+    class PerMethodResource:
+        @limiter.rate_limit(
+            requests=1,
+            per=relativedelta(seconds=1),
+            per_method=True,
+        )
+        def handle(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.status = falcon.HTTP_200
+            resp.text = "PER METHOD OK"
+
+        on_get = handle
+        on_post = handle
+
     class ExemptDecoratedResource:
         @limiter.exempt
-        @limiter.rate_limit(requests=1, per=relativedelta(seconds=1))
+        @limiter.rate_limit(
+            requests=1,
+            per=relativedelta(seconds=1),
+        )
         def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
             resp.status = falcon.HTTP_200
             resp.text = "EXEMPT OK"
@@ -63,6 +98,8 @@ def create_app() -> falcon.App:
     app.add_route("/test", TestResource())
     app.add_route("/per-client", PerClientResource())
     app.add_route("/custom-message", CustomMessageResource())
+    app.add_route("/method-filtered", MethodFilteredResource())
+    app.add_route("/per-method", PerMethodResource())
     app.add_route("/exempt-decorated", ExemptDecoratedResource())
     app.add_route("/class-test", ClassDecoratedResource())
     app.add_route("/class-per-client", ClassPerClientResource())
@@ -99,6 +136,38 @@ def create_async_app() -> falcon.asgi.App:
             resp.status = falcon.HTTP_200
             resp.text = "ASYNC CUSTOM OK"
 
+    class AsyncMethodFilteredResource:
+        @limiter.rate_limit(
+            requests=1,
+            per=relativedelta(seconds=1),
+            methods=["POST"],
+        )
+        async def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.status = falcon.HTTP_200
+            resp.text = "ASYNC METHOD FILTER GET OK"
+
+        @limiter.rate_limit(
+            requests=1,
+            per=relativedelta(seconds=1),
+            methods=["POST"],
+        )
+        async def on_post(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.status = falcon.HTTP_200
+            resp.text = "ASYNC METHOD FILTER POST OK"
+
+    class AsyncPerMethodResource:
+        @limiter.rate_limit(
+            requests=1,
+            per=relativedelta(seconds=1),
+            per_method=True,
+        )
+        async def handle(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.status = falcon.HTTP_200
+            resp.text = "ASYNC PER METHOD OK"
+
+        on_get = handle
+        on_post = handle
+
     class AsyncExemptDecoratedResource:
         @limiter.exempt
         @limiter.rate_limit(requests=1, per=relativedelta(seconds=1))
@@ -116,6 +185,8 @@ def create_async_app() -> falcon.asgi.App:
     app.add_route("/async-test", AsyncTestResource())
     app.add_route("/async-per-client", AsyncPerClientResource())
     app.add_route("/async-custom-message", AsyncCustomMessageResource())
+    app.add_route("/async-method-filtered", AsyncMethodFilteredResource())
+    app.add_route("/async-per-method", AsyncPerMethodResource())
     app.add_route("/async-exempt-decorated", AsyncExemptDecoratedResource())
     app.add_route("/async-class-test", AsyncClassDecoratedResource())
     return app

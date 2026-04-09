@@ -21,12 +21,18 @@ class RateLimitDefinition:
         rate_limit_item: The ``limits`` library item used for storage lookups.
         key_func: Function that extracts the client identifier from a request.
         rejection_message: Message returned in HTTP 429 responses.
+        methods: Optional uppercase HTTP methods that should trigger the limit.
+            ``None`` means the limit applies to every request method.
+        per_method: Whether requests that share the same responder should use
+            separate counters per HTTP method.
     """
 
     requests: int
     rate_limit_item: RateLimitItem
     key_func: Callable[[falcon.Request], str]
     rejection_message: str
+    methods: frozenset[str] | None = None
+    per_method: bool = False
 
 
 def _get_request_response(
@@ -138,6 +144,45 @@ def _build_rate_limit_key(
     return f"{scope}:{client_id}"
 
 
+def _request_method_matches_limit(
+    req: falcon.Request, resolved_limit: RateLimitDefinition
+) -> bool:
+    """Return whether a request method should be checked against a limit.
+
+    Args:
+        req: The incoming Falcon request.
+        resolved_limit: The limit configuration being evaluated.
+
+    Returns:
+        ``True`` when the limit applies to the request method, otherwise ``False``.
+    """
+
+    if resolved_limit.methods is None:
+        return True
+    return req.method.upper() in resolved_limit.methods
+
+
+def _scope_for_limit(
+    req: falcon.Request,
+    scope: str,
+    resolved_limit: RateLimitDefinition,
+) -> str:
+    """Return the storage scope for a request and limit configuration.
+
+    Args:
+        req: The incoming Falcon request.
+        scope: Base endpoint scope, usually the responder ``__qualname__``.
+        resolved_limit: The limit configuration being enforced.
+
+    Returns:
+        The base scope, or a method-specific scope when ``per_method`` is enabled.
+    """
+
+    if not resolved_limit.per_method:
+        return scope
+    return f"{scope}:{req.method.upper()}"
+
+
 def _set_rate_limit_headers(
     resp: falcon.Response,
     stats: WindowStats,
@@ -200,7 +245,14 @@ def _check_rate_limit(
     Raises:
         falcon.HTTPTooManyRequests: When the rate limit is exceeded.
     """
-    key = _build_rate_limit_key(req, scope, resolved_limit.key_func)
+    if not _request_method_matches_limit(req, resolved_limit):
+        return
+
+    key = _build_rate_limit_key(
+        req,
+        _scope_for_limit(req, scope, resolved_limit),
+        resolved_limit.key_func,
+    )
     allowed = limiter.hit(resolved_limit.rate_limit_item, key)
     stats: WindowStats | None = None
     if headers_enabled or not allowed:
@@ -239,7 +291,14 @@ async def _check_rate_limit_async(
     Raises:
         falcon.HTTPTooManyRequests: When the rate limit is exceeded.
     """
-    key = _build_rate_limit_key(req, scope, resolved_limit.key_func)
+    if not _request_method_matches_limit(req, resolved_limit):
+        return
+
+    key = _build_rate_limit_key(
+        req,
+        _scope_for_limit(req, scope, resolved_limit),
+        resolved_limit.key_func,
+    )
 
     def _hit_and_stats() -> tuple[bool, WindowStats | None]:
         """Run blocking limiter calls in a thread pool."""

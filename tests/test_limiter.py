@@ -186,6 +186,58 @@ def test_async_custom_error_message(async_client: TestClient) -> None:
     assert resp.json["description"] == "Async too fast"
 
 
+def test_methods_filter_only_limits_selected_methods(client: TestClient) -> None:
+    first_get = client.get("/method-filtered")
+    second_get = client.get("/method-filtered")
+    first_post = client.simulate_post("/method-filtered")
+    second_post = client.simulate_post("/method-filtered")
+
+    assert first_get.status_code == HTTP_200
+    assert second_get.status_code == HTTP_200
+    assert first_post.status_code == HTTP_200
+    assert second_post.status_code == HTTP_429
+
+
+def test_per_method_keeps_get_and_post_counters_separate(client: TestClient) -> None:
+    first_get = client.get("/per-method")
+    second_get = client.get("/per-method")
+    first_post = client.simulate_post("/per-method")
+    second_post = client.simulate_post("/per-method")
+
+    assert first_get.status_code == HTTP_200
+    assert second_get.status_code == HTTP_429
+    assert first_post.status_code == HTTP_200
+    assert second_post.status_code == HTTP_429
+
+
+def test_async_methods_filter_only_limits_selected_methods(
+    async_client: TestClient,
+) -> None:
+    first_get = async_client.get("/async-method-filtered")
+    second_get = async_client.get("/async-method-filtered")
+    first_post = async_client.simulate_post("/async-method-filtered")
+    second_post = async_client.simulate_post("/async-method-filtered")
+
+    assert first_get.status_code == HTTP_200
+    assert second_get.status_code == HTTP_200
+    assert first_post.status_code == HTTP_200
+    assert second_post.status_code == HTTP_429
+
+
+def test_async_per_method_keeps_get_and_post_counters_separate(
+    async_client: TestClient,
+) -> None:
+    first_get = async_client.get("/async-per-method")
+    second_get = async_client.get("/async-per-method")
+    first_post = async_client.simulate_post("/async-per-method")
+    second_post = async_client.simulate_post("/async-per-method")
+
+    assert first_get.status_code == HTTP_200
+    assert second_get.status_code == HTTP_429
+    assert first_post.status_code == HTTP_200
+    assert second_post.status_code == HTTP_429
+
+
 def test_exempt_decorator_skips_explicit_limits(client: TestClient) -> None:
     resp1 = client.get("/exempt-decorated")
     resp2 = client.get("/exempt-decorated")

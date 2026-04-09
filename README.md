@@ -59,6 +59,34 @@ class SearchResource:
         resp.media = {"items": []}
 ```
 
+You can also limit only selected HTTP methods:
+
+```python
+class ReportResource:
+    @limiter.rate_limit(
+        requests=5,
+        per=relativedelta(minutes=1),
+        methods=["POST"],
+    )
+    def on_post(self, req: falcon.Request, resp: falcon.Response) -> None:
+        resp.text = "queued"
+```
+
+Use `per_method=True` when different HTTP methods can reach the same responder
+and should keep separate counters. This is especially useful for Falcon's
+implicit `HEAD` handling on `on_get` responders:
+
+```python
+class StatusResource:
+    @limiter.rate_limit(
+        requests=10,
+        per=relativedelta(minutes=1),
+        per_method=True,
+    )
+    def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+        resp.text = "ok"
+```
+
 Or decorate an entire resource class:
 
 ```python
