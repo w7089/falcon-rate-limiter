@@ -104,6 +104,18 @@ def create_app() -> falcon.App:
             resp.status = falcon.HTTP_200
             resp.text = "DYNAMIC COST OK"
 
+    class SharedLimitFirstResource:
+        @limiter.shared_limit("2/second", scope="shared-sync")
+        def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.status = falcon.HTTP_200
+            resp.text = "SHARED FIRST OK"
+
+    class SharedLimitSecondResource:
+        @limiter.shared_limit("2/second", scope="shared-sync")
+        def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.status = falcon.HTTP_200
+            resp.text = "SHARED SECOND OK"
+
     class ExemptDecoratedResource:
         @limiter.exempt
         @limiter.rate_limit(
@@ -139,6 +151,8 @@ def create_app() -> falcon.App:
     app.add_route("/conditional-exempt", ConditionalExemptResource())
     app.add_route("/static-cost", StaticCostResource())
     app.add_route("/dynamic-cost", DynamicCostResource())
+    app.add_route("/shared-first", SharedLimitFirstResource())
+    app.add_route("/shared-second", SharedLimitSecondResource())
     app.add_route("/exempt-decorated", ExemptDecoratedResource())
     app.add_route("/class-test", ClassDecoratedResource())
     app.add_route("/class-per-client", ClassPerClientResource())
@@ -243,6 +257,18 @@ def create_async_app() -> falcon.asgi.App:
             resp.status = falcon.HTTP_200
             resp.text = "ASYNC DYNAMIC COST OK"
 
+    class AsyncSharedLimitFirstResource:
+        @limiter.shared_limit("2/second", scope="shared-async")
+        async def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.status = falcon.HTTP_200
+            resp.text = "ASYNC SHARED FIRST OK"
+
+    class AsyncSharedLimitSecondResource:
+        @limiter.shared_limit("2/second", scope="shared-async")
+        async def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.status = falcon.HTTP_200
+            resp.text = "ASYNC SHARED SECOND OK"
+
     class AsyncExemptDecoratedResource:
         @limiter.exempt
         @limiter.rate_limit(requests=1, per=relativedelta(seconds=1))
@@ -265,6 +291,8 @@ def create_async_app() -> falcon.asgi.App:
     app.add_route("/async-conditional-exempt", AsyncConditionalExemptResource())
     app.add_route("/async-static-cost", AsyncStaticCostResource())
     app.add_route("/async-dynamic-cost", AsyncDynamicCostResource())
+    app.add_route("/async-shared-first", AsyncSharedLimitFirstResource())
+    app.add_route("/async-shared-second", AsyncSharedLimitSecondResource())
     app.add_route("/async-exempt-decorated", AsyncExemptDecoratedResource())
     app.add_route("/async-class-test", AsyncClassDecoratedResource())
     return app

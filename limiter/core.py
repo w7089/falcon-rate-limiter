@@ -4,6 +4,7 @@ from typing import Any, Callable
 
 import falcon
 from dateutil.relativedelta import relativedelta
+from limits import parse
 from limits.storage import Storage
 
 from limiter._helpers import (
@@ -431,6 +432,77 @@ class FalconRateLimiter:
             methods=methods,
             per_method=per_method,
         )
+        return self._decorate_limit(resolved_limit)
+
+    def shared_limit(
+        self,
+        limit_value: str,
+        scope: str,
+        key_func: Callable[[falcon.Request], str] | None = None,
+        error_message: str | None = None,
+        exempt_when: Callable[[falcon.Request], bool] | None = None,
+        cost: int | Callable[[falcon.Request], int] = 1,
+        methods: list[str] | tuple[str, ...] | None = None,
+        per_method: bool = False,
+    ) -> Callable[[Any], Any]:
+        """Decorator to apply one shared limit bucket across multiple routes.
+
+        Args:
+            limit_value: Limit string understood by ``limits``, such as
+                ``"5/minute"``.
+            scope: Shared storage scope used by every decorated route.
+            key_func: Optional override for client key extraction.
+            error_message: Custom message for HTTP 429 responses.
+            exempt_when: Optional request predicate that skips rate limiting
+                when it returns ``True``.
+            cost: Either a static hit cost or a request-based callable that
+                returns the hit cost for each request.
+            methods: Optional HTTP methods that should trigger the limit.
+            per_method: Whether requests in the shared scope should keep
+                separate counters per HTTP method.
+
+        Returns:
+            A decorator that wraps the target with shared-scope enforcement.
+
+        Raises:
+            ValueError: When ``scope`` is blank, ``limit_value`` is invalid, or
+                a static ``cost`` is not a positive integer.
+        """
+
+        if not scope.strip():
+            raise ValueError("scope must be a non-empty string")
+        if isinstance(cost, int) and (isinstance(cost, bool) or cost <= 0):
+            raise ValueError("cost must be a positive integer")
+
+        rate_limit_item = parse(limit_value)
+        resolved_limit = RateLimitDefinition(
+            requests=rate_limit_item.amount,
+            rate_limit_item=rate_limit_item,
+            key_func=self._resolve_key_func(key_func),
+            rejection_message=error_message or DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE,
+            exempt_when=exempt_when,
+            cost=cost,
+            methods=self._normalize_methods(methods),
+            per_method=per_method,
+        )
+        return self._decorate_limit(resolved_limit, shared_scope=scope)
+
+    def _decorate_limit(
+        self,
+        resolved_limit: RateLimitDefinition,
+        shared_scope: str | None = None,
+    ) -> Callable[[Any], Any]:
+        """Build a decorator that enforces a resolved limit definition.
+
+        Args:
+            resolved_limit: Fully resolved rate limit configuration.
+            shared_scope: Optional shared storage scope. When omitted, each
+                decorated responder uses its own ``__qualname__``.
+
+        Returns:
+            A decorator that applies the resolved limit to responders or
+            resource classes.
+        """
 
         def decorator(target: Any) -> Any:
             # When decorating a class, wrap all on_* responder methods
@@ -447,7 +519,8 @@ class FalconRateLimiter:
                 if self._is_exempt_call(target, sync_wrapper, args):
                     return target(*args, **kwargs)
                 req, resp = _get_request_response(args)
-                self.enforce_limit(resolved_limit, target.__qualname__, req, resp)
+                scope = shared_scope or target.__qualname__
+                self.enforce_limit(resolved_limit, scope, req, resp)
                 return target(*args, **kwargs)
 
             @wraps(target)
@@ -456,9 +529,8 @@ class FalconRateLimiter:
                 if self._is_exempt_call(target, async_wrapper, args):
                     return await target(*args, **kwargs)
                 req, resp = _get_request_response(args)
-                await self.enforce_limit_async(
-                    resolved_limit, target.__qualname__, req, resp
-                )
+                scope = shared_scope or target.__qualname__
+                await self.enforce_limit_async(resolved_limit, scope, req, resp)
                 return await target(*args, **kwargs)
 
             _mark_rate_limited(target)

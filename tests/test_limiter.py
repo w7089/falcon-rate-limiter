@@ -360,6 +360,20 @@ def test_cost_applies_to_middleware_limits() -> None:
     assert client.get("/middleware-cost").status_code == HTTP_429
 
 
+def test_shared_limit_uses_one_bucket_across_routes(client: TestClient) -> None:
+    assert client.get("/shared-first").status_code == HTTP_200
+    assert client.get("/shared-second").status_code == HTTP_200
+    assert client.get("/shared-first").status_code == HTTP_429
+
+
+def test_async_shared_limit_uses_one_bucket_across_routes(
+    async_client: TestClient,
+) -> None:
+    assert async_client.get("/async-shared-first").status_code == HTTP_200
+    assert async_client.get("/async-shared-second").status_code == HTTP_200
+    assert async_client.get("/async-shared-first").status_code == HTTP_429
+
+
 def test_exempt_decorator_skips_explicit_limits(client: TestClient) -> None:
     resp1 = client.get("/exempt-decorated")
     resp2 = client.get("/exempt-decorated")

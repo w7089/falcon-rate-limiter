@@ -113,6 +113,21 @@ class BulkUploadResource:
         resp.text = "accepted"
 ```
 
+Use `shared_limit` when multiple routes should share one bucket:
+
+```python
+class SearchResource:
+    @limiter.shared_limit("20/minute", scope="public-search")
+    def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+        resp.text = "search"
+
+
+class SuggestResource:
+    @limiter.shared_limit("20/minute", scope="public-search")
+    def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+        resp.text = "suggest"
+```
+
 Or decorate an entire resource class:
 
 ```python
