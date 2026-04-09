@@ -397,10 +397,58 @@ app.add_route("/async", AsyncResource())
 
 ## Development and releases
 
-- Versions follow [Semantic Versioning](https://semver.org/).
-- Pull requests and pushes to `main` run the GitHub Actions CI workflow.
-- Creating a `vX.Y.Z` tag publishes the matching `pyproject.toml` version to PyPI.
-- Dependabot keeps `uv` dependencies and GitHub Actions versions up to date.
+Versions follow [Semantic Versioning](https://semver.org/), and
+`pyproject.toml` is the source of truth for the published package version.
+
+### CI behavior
+
+- Pull requests run CI.
+- Pushes to `main` run CI again after merge.
+- CI runs linting, type-checking, unit tests, package builds, and the Redis-backed
+  e2e suite.
+- Merging to `main` does **not** publish a release by itself.
+
+### Release behavior
+
+Publishing happens only when GitHub receives a tag in the `vX.Y.Z` format, such
+as `v0.1.1`.
+
+The publish workflow checks that:
+
+1. the tag is a valid semantic version tag
+2. the tag matches `project.version` in `pyproject.toml`
+
+If either check fails, the release stops before uploading to PyPI.
+
+### Makefile helpers
+
+```bash
+make version        # print the current package version
+make release        # bump patch version (default)
+make release-minor  # bump minor version
+make release-major  # bump major version
+make release-tag    # create git tag vX.Y.Z from pyproject.toml
+```
+
+`make release` is intentionally an alias for `make release-patch`, so patch
+releases are the default path.
+
+### Release steps
+
+1. Run `make release` for a patch release, or `make release-minor` / `make release-major` when needed.
+2. Update `CHANGELOG.md` for the new version.
+3. Commit the version and changelog changes.
+4. Merge that change to `main`.
+5. Check out the updated `main` branch locally.
+6. Run `make release-tag`.
+7. Push the tag with `git push origin vX.Y.Z`.
+
+Once the tag is pushed, GitHub Actions builds the package and publishes it to
+PyPI.
+
+### Dependency updates
+
+Dependabot keeps `uv` dependencies and GitHub Actions versions up to date.
 
 ## Design notes
 
