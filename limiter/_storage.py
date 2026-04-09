@@ -1,3 +1,7 @@
+"""Storage backend management with primary/fallback switching and recovery
+probing via exponential backoff.
+"""
+
 import logging
 import time
 from typing import cast

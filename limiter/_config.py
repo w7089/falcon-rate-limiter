@@ -1,4 +1,9 @@
-"""Environment-backed defaults for limiter configuration."""
+"""Environment-backed defaults for limiter configuration.
+
+Each ``get_optional_*_env`` helper reads a single variable, returning
+``None`` when the variable is unset so constructor arguments can take
+precedence over environment defaults.
+"""
 
 from __future__ import annotations
 

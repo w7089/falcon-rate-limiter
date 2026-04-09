@@ -1,3 +1,5 @@
+"""Utilities for rate limit item creation and client identification."""
+
 from dateutil.relativedelta import relativedelta
 import falcon
 from limits import (
@@ -15,12 +17,14 @@ from typing import Sequence, cast
 def _create_rate_limit_item(requests: int, per: relativedelta) -> RateLimitItem:
     """Create a ``limits`` library RateLimitItem from a relativedelta.
 
-    Maps the largest non-zero field in the relativedelta to the appropriate
-    ``limits`` item class (per-second, per-minute, etc.).
+    The relativedelta should contain exactly one non-zero time unit.  When
+    multiple fields are set, the smallest unit takes precedence (seconds
+    before minutes before hours, etc.).
 
     Args:
         requests: Maximum requests allowed in the time window.
-        per: Time window duration with exactly one non-zero field.
+        per: Time window duration, typically with one non-zero field
+            (e.g., ``relativedelta(minutes=1)``).
 
     Returns:
         A ``RateLimitItem`` configured for the specified granularity.
@@ -46,7 +50,7 @@ def _create_rate_limit_item(requests: int, per: relativedelta) -> RateLimitItem:
         )
 
 
-def _get_remote_address(req: falcon.Request) -> str:
+def get_remote_address(req: falcon.Request) -> str:
     """Extract the client IP address from a Falcon request.
 
     Prefers ``access_route[0]`` (first IP in X-Forwarded-For chain) when

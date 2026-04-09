@@ -10,17 +10,32 @@ Current implemented features include:
 - sync and async (ASGI) responder support
 - per-client keys via `key_func`
 - `429 Too Many Requests` errors via `falcon.HTTPTooManyRequests`
-- rate-limit response headers
+- rate-limit response headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`)
 - URI-configured storage backends via `limits` (including Redis)
 - Falcon middleware-based automatic checks for undecorated routes
 - `@limiter.exempt` to skip explicit and default limits
 - in-memory fallback with recovery probing when primary storage is unavailable
 - configurable strategy: fixed-window, moving-window, or sliding-window-counter
+- method-aware limits via `per_method` for separate counters per HTTP verb
+- conditional exemptions via `exempt_when` callable
+- weighted request costs via `cost` parameter (static or request-based)
+- shared limit buckets via `shared_key` for cross-endpoint limits
+- `enabled`/`swallow_errors` toggles with environment variable fallbacks
 
 ## Installation
 
 ```bash
 uv add falcon-rate-limiter
+# or
+pip install falcon-rate-limiter
+```
+
+For Redis-backed storage:
+
+```bash
+uv add "falcon-rate-limiter[redis]"
+# or
+pip install "falcon-rate-limiter[redis]"
 ```
 
 ## Quick start
@@ -296,14 +311,16 @@ limiter = FalconRateLimiter(swallow_errors=True)
 Constructor arguments remain the source of truth, but when you leave them
 unset the limiter can read defaults from environment variables:
 
-- `RATELIMIT_ENABLED`
-- `RATELIMIT_HEADERS_ENABLED`
-- `RATELIMIT_STORAGE_URL`
-- `RATELIMIT_STRATEGY`
-- `RATELIMIT_LIMIT_UNDECORATED_ROUTES`
-- `RATELIMIT_SWALLOW_ERRORS`
-- `RATELIMIT_RECOVERY_BACKOFF_SECONDS`
-- `RATELIMIT_MAX_RECOVERY_BACKOFF_SECONDS`
+| Variable | Type | Default | Description |
+|---|---|---|---|
+| `RATELIMIT_ENABLED` | `bool` | `true` | Master on/off switch for rate limiting |
+| `RATELIMIT_HEADERS_ENABLED` | `bool` | `true` | Add `X-RateLimit-*` response headers |
+| `RATELIMIT_STORAGE_URL` | `str` | `memory://` | Storage backend URI (e.g., `redis://localhost:6379/0`) |
+| `RATELIMIT_STRATEGY` | `str` | `fixed-window` | Rate-limiting strategy (`fixed-window`, `moving-window`, `sliding-window-counter`) |
+| `RATELIMIT_LIMIT_UNDECORATED_ROUTES` | `bool` | `true` | Apply default limits to undecorated routes via middleware |
+| `RATELIMIT_SWALLOW_ERRORS` | `bool` | `false` | Log request-time limiter errors instead of raising |
+| `RATELIMIT_RECOVERY_BACKOFF_SECONDS` | `float` | `1.0` | Initial delay before probing failed primary storage |
+| `RATELIMIT_MAX_RECOVERY_BACKOFF_SECONDS` | `float` | `60.0` | Maximum delay between recovery probes |
 
 Example:
 

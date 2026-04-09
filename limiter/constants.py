@@ -1,4 +1,4 @@
-"""Shared constants for limiter messages, logger names, and env config."""
+"""Shared constants: default values, log message templates, and env var names."""
 
 LOGGER_NAME = "falcon-rate-limiter"
 

@@ -283,6 +283,10 @@ dependencies = [
     { name = "falcon" },
     { name = "limits" },
     { name = "python-dateutil" },
+]
+
+[package.optional-dependencies]
+redis = [
     { name = "redis" },
 ]
 
@@ -305,8 +309,9 @@ requires-dist = [
     { name = "falcon", specifier = ">=4.0.0" },
     { name = "limits", specifier = ">=3.0.0" },
     { name = "python-dateutil", specifier = ">=2.9.0.post0" },
-    { name = "redis", specifier = ">=4.0.0" },
+    { name = "redis", marker = "extra == 'redis'", specifier = ">=4.0.0" },
 ]
+provides-extras = ["redis"]
 
 [package.metadata.requires-dev]
 dev = [

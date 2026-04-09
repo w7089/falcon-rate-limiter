@@ -1,3 +1,5 @@
+"""Falcon middleware that enforces default rate limits on undecorated routes."""
+
 import inspect
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -127,6 +129,36 @@ class FalconRateLimitMiddleware:
             responder, "__qualname__", getattr(responder, "__name__", "global")
         )
 
+    def _should_enforce(self, req: falcon.Request, resource: object) -> str | None:
+        """Decide whether the middleware should enforce a limit on this request.
+
+        Resolves the responder for the request method and checks the skip
+        conditions in order: missing responder, limiter disabled,
+        undecorated-route enforcement disabled, no resolved limit, exempt,
+        or already decorated.
+
+        Args:
+            req: The incoming Falcon request.
+            resource: The matched Falcon resource instance.
+
+        Returns:
+            The scope string for rate-limit key construction, or ``None``
+            when enforcement should be skipped.
+        """
+        responder = getattr(resource, f"on_{req.method.lower()}", None)
+        if (
+            responder is None
+            or not self._limiter.enabled
+            or not self._limiter.limit_undecorated_routes
+            or self._resolved_limit is None
+        ):
+            return None
+        if self._is_exempt_resource_or_responder(resource, responder):
+            return None
+        if self._is_decorated_resource_or_responder(resource, responder):
+            return None
+        return self._scope_for(responder)
+
     def process_resource(
         self,
         req: falcon.Request,
@@ -150,22 +182,12 @@ class FalconRateLimitMiddleware:
             falcon.HTTPTooManyRequests: When the rate limit is exceeded.
         """
         del params  # Unused but required by Falcon's middleware signature
-        # Resolve the responder for this HTTP method (e.g., on_get, on_post)
-        responder = getattr(resource, f"on_{req.method.lower()}", None)
-        if (
-            responder is None
-            or not self._limiter.enabled
-            or not self._limiter.limit_undecorated_routes
-            or self._resolved_limit is None
-        ):
+        scope = self._should_enforce(req, resource)
+        if scope is None:
             return
-        if self._is_exempt_resource_or_responder(resource, responder):
-            return
-        if self._is_decorated_resource_or_responder(resource, responder):
-            return
-        self._limiter.enforce_limit(
-            self._resolved_limit, self._scope_for(responder), req, resp
-        )
+        # _should_enforce already verified _resolved_limit is not None
+        assert self._resolved_limit is not None
+        self._limiter.enforce_limit(self._resolved_limit, scope, req, resp)
 
     async def process_resource_async(
         self,
@@ -189,19 +211,9 @@ class FalconRateLimitMiddleware:
             falcon.HTTPTooManyRequests: When the rate limit is exceeded.
         """
         del params  # Unused but required by Falcon's middleware signature
-        # Resolve the responder for this HTTP method (e.g., on_get, on_post)
-        responder = getattr(resource, f"on_{req.method.lower()}", None)
-        if (
-            responder is None
-            or not self._limiter.enabled
-            or not self._limiter.limit_undecorated_routes
-            or self._resolved_limit is None
-        ):
+        scope = self._should_enforce(req, resource)
+        if scope is None:
             return
-        if self._is_exempt_resource_or_responder(resource, responder):
-            return
-        if self._is_decorated_resource_or_responder(resource, responder):
-            return
-        await self._limiter.enforce_limit_async(
-            self._resolved_limit, self._scope_for(responder), req, resp
-        )
+        # _should_enforce already verified _resolved_limit is not None
+        assert self._resolved_limit is not None
+        await self._limiter.enforce_limit_async(self._resolved_limit, scope, req, resp)

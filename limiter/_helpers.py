@@ -1,3 +1,7 @@
+"""Internal helpers for rate-limit decorator marking, request inspection,
+and synchronous/asynchronous limit enforcement.
+"""
+
 import asyncio
 import logging
 from dataclasses import dataclass

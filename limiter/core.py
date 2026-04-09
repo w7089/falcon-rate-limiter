@@ -1,7 +1,9 @@
+"""Falcon rate limiter: decorator-based and middleware-driven request throttling."""
+
 import inspect
 import logging
 from functools import wraps
-from typing import Any, Callable
+from typing import Any, Callable, TypeVar
 
 import falcon
 from dateutil.relativedelta import relativedelta
@@ -39,8 +41,23 @@ from limiter.constants import (
 from limiter._storage import STORAGE_BACKEND_EXCEPTIONS, StorageController
 from limiter.utils import (
     _create_rate_limit_item,
-    _get_remote_address,
+    get_remote_address,
 )
+
+_T = TypeVar("_T")
+
+
+def _first_of(arg: _T | None, env: _T | None, default: _T) -> _T:
+    """Return the first non-``None`` value from *arg*, *env*, *default*.
+
+    Used to resolve constructor parameters that support an environment
+    variable fallback and a library default.
+    """
+    if arg is not None:
+        return arg
+    if env is not None:
+        return env
+    return default
 
 
 class FalconRateLimiter:
@@ -125,65 +142,32 @@ class FalconRateLimiter:
         if resolved_storage_uri is None and storage is None:
             resolved_storage_uri = get_optional_string_env(RATELIMIT_STORAGE_URL_ENV)
 
-        resolved_strategy = (
-            strategy
-            if strategy is not None
-            else get_optional_string_env(RATELIMIT_STRATEGY_ENV) or DEFAULT_STRATEGY
-        )
-
-        resolved_recovery_backoff_seconds = (
-            recovery_backoff_seconds
-            if recovery_backoff_seconds is not None
-            else env_recovery_backoff_seconds
-            if env_recovery_backoff_seconds is not None
-            else 1.0
-        )
-        resolved_max_recovery_backoff_seconds = (
-            max_recovery_backoff_seconds
-            if max_recovery_backoff_seconds is not None
-            else env_max_recovery_backoff_seconds
-            if env_max_recovery_backoff_seconds is not None
-            else 60.0
+        resolved_strategy = _first_of(
+            strategy,
+            get_optional_string_env(RATELIMIT_STRATEGY_ENV),
+            DEFAULT_STRATEGY,
         )
 
         self._storage_controller = StorageController(
             storage=storage,
             storage_uri=resolved_storage_uri,
             strategy=resolved_strategy,
-            recovery_backoff_seconds=resolved_recovery_backoff_seconds,
-            max_recovery_backoff_seconds=resolved_max_recovery_backoff_seconds,
+            recovery_backoff_seconds=_first_of(
+                recovery_backoff_seconds, env_recovery_backoff_seconds, 1.0
+            ),
+            max_recovery_backoff_seconds=_first_of(
+                max_recovery_backoff_seconds, env_max_recovery_backoff_seconds, 60.0
+            ),
         )
         self._logger = logging.getLogger(LOGGER_NAME)
         self._key_func = key_func
         self._default_limit = self._create_default_limit(default_requests, default_per)
-        self._headers_enabled = (
-            headers_enabled
-            if headers_enabled is not None
-            else env_headers_enabled
-            if env_headers_enabled is not None
-            else True
+        self._headers_enabled = _first_of(headers_enabled, env_headers_enabled, True)
+        self._limit_undecorated_routes = _first_of(
+            limit_undecorated_routes, env_limit_undecorated_routes, True
         )
-        self._limit_undecorated_routes = (
-            limit_undecorated_routes
-            if limit_undecorated_routes is not None
-            else env_limit_undecorated_routes
-            if env_limit_undecorated_routes is not None
-            else True
-        )
-        self._enabled = (
-            enabled
-            if enabled is not None
-            else env_enabled
-            if env_enabled is not None
-            else True
-        )
-        self._swallow_errors = (
-            swallow_errors
-            if swallow_errors is not None
-            else env_swallow_errors
-            if env_swallow_errors is not None
-            else False
-        )
+        self._enabled = _first_of(enabled, env_enabled, True)
+        self._swallow_errors = _first_of(swallow_errors, env_swallow_errors, False)
 
     def _resolve_key_func(
         self, override: Callable[[falcon.Request], str] | None
@@ -193,7 +177,7 @@ class FalconRateLimiter:
         Priority order:
             1. Per-decorator override (if provided)
             2. Global key_func from __init__ (if provided)
-            3. Default: extract client IP via ``_get_remote_address``
+            3. Default: extract client IP via ``get_remote_address``
 
         Args:
             override: Key function passed to ``@rate_limit()``, or ``None``.
@@ -205,7 +189,7 @@ class FalconRateLimiter:
             return override
         if self._key_func is not None:
             return self._key_func
-        return _get_remote_address
+        return get_remote_address
 
     @property
     def limit_undecorated_routes(self) -> bool:
