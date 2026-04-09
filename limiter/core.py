@@ -24,6 +24,7 @@ from limiter._helpers import (
 )
 from limiter.constants import (
     DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE,
+    DEFAULT_STRATEGY,
     LOGGER_NAME,
     RATELIMIT_ENABLED_ENV,
     RATELIMIT_HEADERS_ENABLED_ENV,
@@ -31,6 +32,7 @@ from limiter.constants import (
     RATELIMIT_MAX_RECOVERY_BACKOFF_SECONDS_ENV,
     RATELIMIT_RECOVERY_BACKOFF_SECONDS_ENV,
     RATELIMIT_STORAGE_URL_ENV,
+    RATELIMIT_STRATEGY_ENV,
     RATELIMIT_SWALLOW_ERRORS_ENV,
     SWALLOWED_RATE_LIMIT_ERROR_LOG_MESSAGE,
 )
@@ -59,6 +61,11 @@ class FalconRateLimiter:
         limit_undecorated_routes: Whether middleware should limit undecorated
             routes. ``None`` falls back to environment config and then the
             library default.
+        strategy: Rate-limiting strategy name. Supported values are
+            ``"fixed-window"`` (default), ``"moving-window"``, and
+            ``"sliding-window-counter"``. ``None`` falls back to the
+            ``RATELIMIT_STRATEGY`` environment variable and then the library
+            default.
         enabled: Whether rate limiting is active. ``None`` falls back to
             environment config and then the library default.
         swallow_errors: Whether request-time limiter errors should be logged and
@@ -80,6 +87,7 @@ class FalconRateLimiter:
         default_per: relativedelta | None = None,
         headers_enabled: bool | None = None,
         limit_undecorated_routes: bool | None = None,
+        strategy: str | None = None,
         enabled: bool | None = None,
         swallow_errors: bool | None = None,
         recovery_backoff_seconds: float | None = None,
@@ -117,6 +125,12 @@ class FalconRateLimiter:
         if resolved_storage_uri is None and storage is None:
             resolved_storage_uri = get_optional_string_env(RATELIMIT_STORAGE_URL_ENV)
 
+        resolved_strategy = (
+            strategy
+            if strategy is not None
+            else get_optional_string_env(RATELIMIT_STRATEGY_ENV) or DEFAULT_STRATEGY
+        )
+
         resolved_recovery_backoff_seconds = (
             recovery_backoff_seconds
             if recovery_backoff_seconds is not None
@@ -135,6 +149,7 @@ class FalconRateLimiter:
         self._storage_controller = StorageController(
             storage=storage,
             storage_uri=resolved_storage_uri,
+            strategy=resolved_strategy,
             recovery_backoff_seconds=resolved_recovery_backoff_seconds,
             max_recovery_backoff_seconds=resolved_max_recovery_backoff_seconds,
         )

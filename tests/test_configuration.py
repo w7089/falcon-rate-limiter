@@ -13,6 +13,7 @@ from limiter.constants import (
     RATELIMIT_MAX_RECOVERY_BACKOFF_SECONDS_ENV,
     RATELIMIT_RECOVERY_BACKOFF_SECONDS_ENV,
     RATELIMIT_STORAGE_URL_ENV,
+    RATELIMIT_STRATEGY_ENV,
     RATELIMIT_SWALLOW_ERRORS_ENV,
     RATE_LIMIT_EXCEEDED_LOG_MESSAGE,
     SWALLOWED_RATE_LIMIT_ERROR_LOG_MESSAGE,
@@ -245,3 +246,34 @@ def test_swallow_errors_does_not_hide_invalid_static_configuration() -> None:
             resp.text = "ok"
 
         del invalid_resource
+
+
+def test_strategy_env_variable_configures_strategy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from limits.strategies import MovingWindowRateLimiter
+
+    monkeypatch.setenv(RATELIMIT_STRATEGY_ENV, "moving-window")
+    limiter = FalconRateLimiter()
+
+    assert isinstance(
+        limiter._storage_controller.current_limiter, MovingWindowRateLimiter
+    )
+
+
+def test_strategy_constructor_overrides_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from limits.strategies import SlidingWindowCounterRateLimiter
+
+    monkeypatch.setenv(RATELIMIT_STRATEGY_ENV, "moving-window")
+    limiter = FalconRateLimiter(strategy="sliding-window-counter")
+
+    assert isinstance(
+        limiter._storage_controller.current_limiter, SlidingWindowCounterRateLimiter
+    )
+
+
+def test_invalid_strategy_raises_value_error() -> None:
+    with pytest.raises(ValueError, match="Unknown rate limiting strategy"):
+        FalconRateLimiter(strategy="not-a-strategy")

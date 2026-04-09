@@ -6,7 +6,7 @@ from typing import Any, Callable, cast
 
 import falcon
 from limits import RateLimitItem
-from limits.strategies import FixedWindowRateLimiter
+from limits.strategies import RateLimiter
 from limits.util import WindowStats
 
 from limiter.constants import LOGGER_NAME, RATE_LIMIT_EXCEEDED_LOG_MESSAGE
@@ -278,7 +278,7 @@ def _retry_after_seconds(stats: WindowStats | None) -> int | None:
 
 
 def _check_rate_limit(
-    limiter: FixedWindowRateLimiter,
+    limiter: RateLimiter,
     resolved_limit: RateLimitDefinition,
     headers_enabled: bool,
     scope: str,
@@ -291,7 +291,7 @@ def _check_rate_limit(
     ``falcon.HTTPTooManyRequests`` if the limit is exceeded.
 
     Args:
-        limiter: The fixed-window rate limiter strategy instance.
+        limiter: The rate limiter strategy instance.
         resolved_limit: The limit definition containing the rate and key func.
         headers_enabled: Whether to add X-RateLimit-* headers to the response.
         scope: Identifier for the endpoint (usually ``__qualname__``).
@@ -327,7 +327,7 @@ def _check_rate_limit(
 
 
 async def _check_rate_limit_async(
-    limiter: FixedWindowRateLimiter,
+    limiter: RateLimiter,
     resolved_limit: RateLimitDefinition,
     headers_enabled: bool,
     scope: str,
@@ -341,7 +341,7 @@ async def _check_rate_limit_async(
     loop in ASGI applications.
 
     Args:
-        limiter: The fixed-window rate limiter strategy instance.
+        limiter: The rate limiter strategy instance.
         resolved_limit: The limit definition containing the rate and key func.
         headers_enabled: Whether to add X-RateLimit-* headers to the response.
         scope: Identifier for the endpoint (usually ``__qualname__``).

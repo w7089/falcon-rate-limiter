@@ -4,16 +4,19 @@ from typing import cast
 
 from limits.errors import StorageError
 from limits.storage import MemoryStorage, Storage, storage_from_string
-from limits.strategies import FixedWindowRateLimiter
+from limits.strategies import STRATEGIES, RateLimiter
 from redis.exceptions import RedisError
 
 from limiter.constants import (
+    DEFAULT_STRATEGY,
     IN_MEMORY_FALLBACK_LOG_MESSAGE,
+    INVALID_STRATEGY_MESSAGE,
     LOGGER_NAME,
     PRIMARY_STORAGE_FAILED_DURING_REQUEST_MESSAGE,
     PRIMARY_STORAGE_RECOVERED_LOG_MESSAGE,
     PRIMARY_STORAGE_STILL_UNAVAILABLE_LOG_MESSAGE,
     PRIMARY_STORAGE_UNAVAILABLE_MESSAGE,
+    SUPPORTED_STRATEGIES,
 )
 
 _STORAGE_LOGGER = logging.getLogger(LOGGER_NAME)
@@ -52,23 +55,45 @@ def _resolve_storage(
     return cast(Storage, storage_from_string("memory://"))
 
 
+def _resolve_strategy(strategy: str) -> type[RateLimiter]:
+    """Return the ``limits`` strategy class for a strategy name.
+
+    Args:
+        strategy: Strategy name (e.g. ``"fixed-window"``).
+
+    Returns:
+        The ``limits`` strategy class corresponding to the name.
+
+    Raises:
+        ValueError: When the strategy name is not supported.
+    """
+    if strategy not in STRATEGIES:
+        raise ValueError(
+            INVALID_STRATEGY_MESSAGE.format(strategy, sorted(SUPPORTED_STRATEGIES))
+        )
+    return STRATEGIES[strategy]
+
+
 class StorageController:
     """Manage primary storage, in-memory fallback, and recovery probing.
 
     Args:
         storage: Explicit ``limits`` storage instance to use.
         storage_uri: Storage URI to resolve via ``limits``.
+        strategy: Rate-limiting strategy name (e.g. ``"fixed-window"``).
         recovery_backoff_seconds: Initial delay before probing for recovery.
         max_recovery_backoff_seconds: Maximum recovery probe delay.
 
     Raises:
-        ValueError: When storage configuration is invalid.
+        ValueError: When storage configuration is invalid or the strategy
+            name is not supported.
     """
 
     def __init__(
         self,
         storage: Storage | None = None,
         storage_uri: str | None = None,
+        strategy: str = DEFAULT_STRATEGY,
         recovery_backoff_seconds: float = 1.0,
         max_recovery_backoff_seconds: float = 60.0,
     ) -> None:
@@ -80,8 +105,10 @@ class StorageController:
             )
         self._primary_storage = _resolve_storage(storage, storage_uri)
         self._fallback_storage: MemoryStorage | None = None
-        self._primary_limiter = FixedWindowRateLimiter(self._primary_storage)
-        self._fallback_limiter: FixedWindowRateLimiter | None = None
+        strategy_class = _resolve_strategy(strategy)
+        self._strategy_class = strategy_class
+        self._primary_limiter = strategy_class(self._primary_storage)
+        self._fallback_limiter: RateLimiter | None = None
         self._recovery_backoff_seconds = recovery_backoff_seconds
         self._max_recovery_backoff_seconds = max_recovery_backoff_seconds
         self._current_recovery_backoff_seconds = recovery_backoff_seconds
@@ -94,7 +121,7 @@ class StorageController:
             self._switch_to_fallback_storage(PRIMARY_STORAGE_UNAVAILABLE_MESSAGE)
 
     @property
-    def current_limiter(self) -> FixedWindowRateLimiter:
+    def current_limiter(self) -> RateLimiter:
         """Return the limiter that is currently active.
 
         Returns:
@@ -111,7 +138,7 @@ class StorageController:
             return self._fallback_limiter
         return self._primary_limiter
 
-    def limiter_for_enforcement(self) -> FixedWindowRateLimiter:
+    def limiter_for_enforcement(self) -> RateLimiter:
         """Return the rate limiter that should handle the current request.
 
         Returns:
@@ -209,7 +236,7 @@ class StorageController:
         if self._fallback_storage is None:
             self._fallback_storage = MemoryStorage()
         if self._fallback_limiter is None:
-            self._fallback_limiter = FixedWindowRateLimiter(self._fallback_storage)
+            self._fallback_limiter = self._strategy_class(self._fallback_storage)
         self._using_fallback_storage = True
         self._current_recovery_backoff_seconds = self._recovery_backoff_seconds
         probe_delay = self._schedule_next_recovery_probe()

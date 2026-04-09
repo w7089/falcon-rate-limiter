@@ -13,6 +13,7 @@ from limiter.constants import (
     RATELIMIT_MAX_RECOVERY_BACKOFF_SECONDS_ENV,
     RATELIMIT_RECOVERY_BACKOFF_SECONDS_ENV,
     RATELIMIT_STORAGE_URL_ENV,
+    RATELIMIT_STRATEGY_ENV,
     RATELIMIT_SWALLOW_ERRORS_ENV,
 )
 
@@ -28,6 +29,7 @@ class LimiterEnvironmentConfig:
         enabled: Optional default for globally enabling rate limiting.
         headers_enabled: Optional default for response header injection.
         storage_uri: Optional default storage backend URI.
+        strategy: Optional default rate-limiting strategy name.
         limit_undecorated_routes: Optional default for middleware limiting of
             undecorated routes.
         swallow_errors: Optional default for request-time limiter error handling.
@@ -38,6 +40,7 @@ class LimiterEnvironmentConfig:
     enabled: bool | None = None
     headers_enabled: bool | None = None
     storage_uri: str | None = None
+    strategy: str | None = None
     limit_undecorated_routes: bool | None = None
     swallow_errors: bool | None = None
     recovery_backoff_seconds: float | None = None
@@ -70,6 +73,7 @@ def load_environment_config(
         storage_uri=get_optional_string_env(
             RATELIMIT_STORAGE_URL_ENV, resolved_environ
         ),
+        strategy=get_optional_string_env(RATELIMIT_STRATEGY_ENV, resolved_environ),
         limit_undecorated_routes=get_optional_bool_env(
             RATELIMIT_LIMIT_UNDECORATED_ROUTES_ENV, resolved_environ
         ),

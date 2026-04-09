@@ -2,13 +2,18 @@ import pytest
 from limits import RateLimitItemPerSecond
 from limits.errors import StorageError
 from limits.storage import MemoryStorage, storage_from_string
+from limits.strategies import (
+    FixedWindowRateLimiter,
+    MovingWindowRateLimiter,
+    SlidingWindowCounterRateLimiter,
+)
 
 from limiter.constants import (
     LOGGER_NAME,
     PRIMARY_STORAGE_RECOVERED_LOG_MESSAGE,
     PRIMARY_STORAGE_STILL_UNAVAILABLE_LOG_MESSAGE,
 )
-from limiter._storage import StorageController
+from limiter._storage import StorageController, _resolve_strategy
 
 
 class FlakyMemoryStorage(MemoryStorage):
@@ -157,3 +162,65 @@ def test_live_redis_storage_uri_enforces_limits_when_available() -> None:
         assert limiter.hit(item, "redis-storage-key") is False
     finally:
         redis_storage.reset()
+
+
+# --- Strategy selection ---
+
+
+@pytest.mark.parametrize(
+    ("strategy_name", "expected_class"),
+    [
+        ("fixed-window", FixedWindowRateLimiter),
+        ("moving-window", MovingWindowRateLimiter),
+        ("sliding-window-counter", SlidingWindowCounterRateLimiter),
+    ],
+)
+def test_resolve_strategy_returns_correct_class(
+    strategy_name: str,
+    expected_class: type,
+) -> None:
+    assert _resolve_strategy(strategy_name) is expected_class
+
+
+def test_resolve_strategy_rejects_unknown_name() -> None:
+    with pytest.raises(ValueError, match="Unknown rate limiting strategy"):
+        _resolve_strategy("not-a-strategy")
+
+
+@pytest.mark.parametrize(
+    ("strategy_name", "expected_class"),
+    [
+        ("fixed-window", FixedWindowRateLimiter),
+        ("moving-window", MovingWindowRateLimiter),
+        ("sliding-window-counter", SlidingWindowCounterRateLimiter),
+    ],
+)
+def test_storage_controller_uses_configured_strategy(
+    strategy_name: str,
+    expected_class: type,
+) -> None:
+    controller = StorageController(strategy=strategy_name)
+
+    assert isinstance(controller.current_limiter, expected_class)
+
+
+def test_storage_controller_defaults_to_fixed_window() -> None:
+    controller = StorageController()
+
+    assert isinstance(controller.current_limiter, FixedWindowRateLimiter)
+
+
+def test_storage_controller_fallback_uses_same_strategy() -> None:
+    storage = FlakyMemoryStorage()
+    controller = StorageController(
+        storage=storage,
+        strategy="moving-window",
+        recovery_backoff_seconds=0.0,
+        max_recovery_backoff_seconds=0.0,
+    )
+
+    controller.activate_fallback_storage_for_error(
+        StorageError(RuntimeError("simulated"))
+    )
+
+    assert isinstance(controller.current_limiter, MovingWindowRateLimiter)

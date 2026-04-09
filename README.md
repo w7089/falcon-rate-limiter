@@ -15,6 +15,7 @@ Current implemented features include:
 - Falcon middleware-based automatic checks for undecorated routes
 - `@limiter.exempt` to skip explicit and default limits
 - in-memory fallback with recovery probing when primary storage is unavailable
+- configurable strategy: fixed-window, moving-window, or sliding-window-counter
 
 ## Installation
 
@@ -250,6 +251,32 @@ limiter = FalconRateLimiter(
 This fallback is intended for resilience, not shared consistency: while the
 application is using the in-memory fallback, counters are local to that process.
 
+### Rate-limiting strategies
+
+The limiter defaults to a fixed-window strategy. You can choose a different
+strategy provided by the [`limits`](https://limits.readthedocs.io/) library:
+
+```python
+# Fixed window (default)
+limiter = FalconRateLimiter(strategy="fixed-window")
+
+# Moving window — smooths out bursts across the window boundary
+limiter = FalconRateLimiter(strategy="moving-window")
+
+# Sliding window counter — approximates a moving window with lower overhead
+limiter = FalconRateLimiter(strategy="sliding-window-counter")
+```
+
+The strategy can also be set via the `RATELIMIT_STRATEGY` environment variable.
+As with other environment-backed settings, an explicit constructor argument
+always takes precedence:
+
+```bash
+export RATELIMIT_STRATEGY=moving-window
+```
+
+An unsupported strategy name raises `ValueError` at construction time.
+
 ## Configuration and logging
 
 Use `enabled=False` to disable all rate limiting without removing decorators or
@@ -272,6 +299,7 @@ unset the limiter can read defaults from environment variables:
 - `RATELIMIT_ENABLED`
 - `RATELIMIT_HEADERS_ENABLED`
 - `RATELIMIT_STORAGE_URL`
+- `RATELIMIT_STRATEGY`
 - `RATELIMIT_LIMIT_UNDECORATED_ROUTES`
 - `RATELIMIT_SWALLOW_ERRORS`
 - `RATELIMIT_RECOVERY_BACKOFF_SECONDS`
