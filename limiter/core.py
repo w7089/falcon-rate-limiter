@@ -1,4 +1,5 @@
 import inspect
+import logging
 from functools import wraps
 from typing import Any, Callable
 
@@ -7,6 +8,11 @@ from dateutil.relativedelta import relativedelta
 from limits import parse
 from limits.storage import Storage
 
+from limiter._config import (
+    get_optional_bool_env,
+    get_optional_float_env,
+    get_optional_string_env,
+)
 from limiter._helpers import (
     RateLimitDefinition,
     _check_rate_limit,
@@ -16,7 +22,18 @@ from limiter._helpers import (
     _mark_rate_limited,
     _mark_rate_limit_exempt,
 )
-from limiter.constants import DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
+from limiter.constants import (
+    DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE,
+    LOGGER_NAME,
+    RATELIMIT_ENABLED_ENV,
+    RATELIMIT_HEADERS_ENABLED_ENV,
+    RATELIMIT_LIMIT_UNDECORATED_ROUTES_ENV,
+    RATELIMIT_MAX_RECOVERY_BACKOFF_SECONDS_ENV,
+    RATELIMIT_RECOVERY_BACKOFF_SECONDS_ENV,
+    RATELIMIT_STORAGE_URL_ENV,
+    RATELIMIT_SWALLOW_ERRORS_ENV,
+    SWALLOWED_RATE_LIMIT_ERROR_LOG_MESSAGE,
+)
 from limiter._storage import STORAGE_BACKEND_EXCEPTIONS, StorageController
 from limiter.utils import (
     _create_rate_limit_item,
@@ -38,10 +55,20 @@ class FalconRateLimiter:
         default_requests: Default limit count for middleware (requires default_per).
         default_per: Default time window for middleware (requires default_requests).
         headers_enabled: Whether to add X-RateLimit-* headers to responses.
-        limit_undecorated_routes: Whether middleware should limit undecorated routes.
+            ``None`` falls back to environment config and then the library default.
+        limit_undecorated_routes: Whether middleware should limit undecorated
+            routes. ``None`` falls back to environment config and then the
+            library default.
+        enabled: Whether rate limiting is active. ``None`` falls back to
+            environment config and then the library default.
+        swallow_errors: Whether request-time limiter errors should be logged and
+            ignored instead of bubbling out. ``None`` falls back to environment
+            config and then the library default.
         recovery_backoff_seconds: Initial delay before probing failed primary
-            storage for recovery.
+            storage for recovery. ``None`` falls back to environment config and
+            then the library default.
         max_recovery_backoff_seconds: Maximum delay between recovery probes.
+            ``None`` falls back to environment config and then the library default.
     """
 
     def __init__(
@@ -51,21 +78,97 @@ class FalconRateLimiter:
         key_func: Callable[[falcon.Request], str] | None = None,
         default_requests: int | None = None,
         default_per: relativedelta | None = None,
-        headers_enabled: bool = True,
-        limit_undecorated_routes: bool = True,
-        recovery_backoff_seconds: float = 1.0,
-        max_recovery_backoff_seconds: float = 60.0,
+        headers_enabled: bool | None = None,
+        limit_undecorated_routes: bool | None = None,
+        enabled: bool | None = None,
+        swallow_errors: bool | None = None,
+        recovery_backoff_seconds: float | None = None,
+        max_recovery_backoff_seconds: float | None = None,
     ) -> None:
+        env_headers_enabled = (
+            get_optional_bool_env(RATELIMIT_HEADERS_ENABLED_ENV)
+            if headers_enabled is None
+            else None
+        )
+        env_limit_undecorated_routes = (
+            get_optional_bool_env(RATELIMIT_LIMIT_UNDECORATED_ROUTES_ENV)
+            if limit_undecorated_routes is None
+            else None
+        )
+        env_enabled = (
+            get_optional_bool_env(RATELIMIT_ENABLED_ENV) if enabled is None else None
+        )
+        env_swallow_errors = (
+            get_optional_bool_env(RATELIMIT_SWALLOW_ERRORS_ENV)
+            if swallow_errors is None
+            else None
+        )
+        env_recovery_backoff_seconds = (
+            get_optional_float_env(RATELIMIT_RECOVERY_BACKOFF_SECONDS_ENV)
+            if recovery_backoff_seconds is None
+            else None
+        )
+        env_max_recovery_backoff_seconds = (
+            get_optional_float_env(RATELIMIT_MAX_RECOVERY_BACKOFF_SECONDS_ENV)
+            if max_recovery_backoff_seconds is None
+            else None
+        )
+        resolved_storage_uri = storage_uri if storage is None else None
+        if resolved_storage_uri is None and storage is None:
+            resolved_storage_uri = get_optional_string_env(RATELIMIT_STORAGE_URL_ENV)
+
+        resolved_recovery_backoff_seconds = (
+            recovery_backoff_seconds
+            if recovery_backoff_seconds is not None
+            else env_recovery_backoff_seconds
+            if env_recovery_backoff_seconds is not None
+            else 1.0
+        )
+        resolved_max_recovery_backoff_seconds = (
+            max_recovery_backoff_seconds
+            if max_recovery_backoff_seconds is not None
+            else env_max_recovery_backoff_seconds
+            if env_max_recovery_backoff_seconds is not None
+            else 60.0
+        )
+
         self._storage_controller = StorageController(
             storage=storage,
-            storage_uri=storage_uri,
-            recovery_backoff_seconds=recovery_backoff_seconds,
-            max_recovery_backoff_seconds=max_recovery_backoff_seconds,
+            storage_uri=resolved_storage_uri,
+            recovery_backoff_seconds=resolved_recovery_backoff_seconds,
+            max_recovery_backoff_seconds=resolved_max_recovery_backoff_seconds,
         )
+        self._logger = logging.getLogger(LOGGER_NAME)
         self._key_func = key_func
         self._default_limit = self._create_default_limit(default_requests, default_per)
-        self._headers_enabled = headers_enabled
-        self._limit_undecorated_routes = limit_undecorated_routes
+        self._headers_enabled = (
+            headers_enabled
+            if headers_enabled is not None
+            else env_headers_enabled
+            if env_headers_enabled is not None
+            else True
+        )
+        self._limit_undecorated_routes = (
+            limit_undecorated_routes
+            if limit_undecorated_routes is not None
+            else env_limit_undecorated_routes
+            if env_limit_undecorated_routes is not None
+            else True
+        )
+        self._enabled = (
+            enabled
+            if enabled is not None
+            else env_enabled
+            if env_enabled is not None
+            else True
+        )
+        self._swallow_errors = (
+            swallow_errors
+            if swallow_errors is not None
+            else env_swallow_errors
+            if env_swallow_errors is not None
+            else False
+        )
 
     def _resolve_key_func(
         self, override: Callable[[falcon.Request], str] | None
@@ -95,9 +198,39 @@ class FalconRateLimiter:
         return self._limit_undecorated_routes
 
     @property
+    def enabled(self) -> bool:
+        """Whether rate limiting is currently enabled."""
+        return self._enabled
+
+    @property
     def default_limit(self) -> RateLimitDefinition | None:
         """The default limit used by middleware, or ``None`` if not configured."""
         return self._default_limit
+
+    def _swallow_enforcement_error(
+        self,
+        error: BaseException,
+        scope: str,
+    ) -> bool:
+        """Log and swallow a request-time limiter error when configured.
+
+        Args:
+            error: The request-time limiter error that was raised.
+            scope: The scope that was being enforced.
+
+        Returns:
+            ``True`` when the error was swallowed, otherwise ``False``.
+        """
+
+        if not self._swallow_errors:
+            return False
+        self._logger.exception(
+            "%s scope=%s error=%s",
+            SWALLOWED_RATE_LIMIT_ERROR_LOG_MESSAGE,
+            scope,
+            error.__class__.__name__,
+        )
+        return True
 
     def _create_default_limit(
         self,
@@ -218,6 +351,8 @@ class FalconRateLimiter:
         Raises:
             falcon.HTTPTooManyRequests: When the rate limit is exceeded.
         """
+        if not self._enabled:
+            return
         limiter = self._storage_controller.limiter_for_enforcement()
         try:
             _check_rate_limit(
@@ -230,15 +365,26 @@ class FalconRateLimiter:
             )
         except STORAGE_BACKEND_EXCEPTIONS as exc:
             if not self._storage_controller.activate_fallback_storage_for_error(exc):
+                if self._swallow_enforcement_error(exc, scope):
+                    return
                 raise
-            _check_rate_limit(
-                self._storage_controller.current_limiter,
-                limit,
-                self._headers_enabled,
-                scope,
-                req,
-                resp,
-            )
+            try:
+                _check_rate_limit(
+                    self._storage_controller.current_limiter,
+                    limit,
+                    self._headers_enabled,
+                    scope,
+                    req,
+                    resp,
+                )
+            except STORAGE_BACKEND_EXCEPTIONS as retry_exc:
+                if self._swallow_enforcement_error(retry_exc, scope):
+                    return
+                raise
+        except ValueError as exc:
+            if self._swallow_enforcement_error(exc, scope):
+                return
+            raise
 
     def enforce_limits(
         self,
@@ -258,6 +404,8 @@ class FalconRateLimiter:
         Raises:
             falcon.HTTPTooManyRequests: When any limit is exceeded.
         """
+        if not self._enabled:
+            return
         for limit in limits:
             self.enforce_limit(limit, scope, req, resp)
 
@@ -282,6 +430,8 @@ class FalconRateLimiter:
         Raises:
             falcon.HTTPTooManyRequests: When the rate limit is exceeded.
         """
+        if not self._enabled:
+            return
         limiter = self._storage_controller.limiter_for_enforcement()
         try:
             await _check_rate_limit_async(
@@ -294,15 +444,26 @@ class FalconRateLimiter:
             )
         except STORAGE_BACKEND_EXCEPTIONS as exc:
             if not self._storage_controller.activate_fallback_storage_for_error(exc):
+                if self._swallow_enforcement_error(exc, scope):
+                    return
                 raise
-            await _check_rate_limit_async(
-                self._storage_controller.current_limiter,
-                limit,
-                self._headers_enabled,
-                scope,
-                req,
-                resp,
-            )
+            try:
+                await _check_rate_limit_async(
+                    self._storage_controller.current_limiter,
+                    limit,
+                    self._headers_enabled,
+                    scope,
+                    req,
+                    resp,
+                )
+            except STORAGE_BACKEND_EXCEPTIONS as retry_exc:
+                if self._swallow_enforcement_error(retry_exc, scope):
+                    return
+                raise
+        except ValueError as exc:
+            if self._swallow_enforcement_error(exc, scope):
+                return
+            raise
 
     async def enforce_limits_async(
         self,
@@ -322,6 +483,8 @@ class FalconRateLimiter:
         Raises:
             falcon.HTTPTooManyRequests: When any limit is exceeded.
         """
+        if not self._enabled:
+            return
         for limit in limits:
             await self.enforce_limit_async(limit, scope, req, resp)
 

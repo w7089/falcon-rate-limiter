@@ -10,6 +10,7 @@ from limiter import FalconRateLimitMiddleware
 from limiter.constants import (
     DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE,
     IN_MEMORY_FALLBACK_LOG_MESSAGE,
+    LOGGER_NAME,
 )
 from limiter.core import FalconRateLimiter
 from tests.test_app import (
@@ -438,7 +439,7 @@ def test_unavailable_storage_uri_falls_back_to_memory(
     app.add_route("/fallback", FallbackResource())
     client = TestClient(app)
 
-    with caplog.at_level("WARNING", logger="falcon-rate-limiter"):
+    with caplog.at_level("WARNING", logger=LOGGER_NAME):
         assert client.get("/fallback").status_code == HTTP_200
         assert client.get("/fallback").status_code == HTTP_429
 

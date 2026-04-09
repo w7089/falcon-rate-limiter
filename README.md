@@ -250,6 +250,45 @@ limiter = FalconRateLimiter(
 This fallback is intended for resilience, not shared consistency: while the
 application is using the in-memory fallback, counters are local to that process.
 
+## Configuration and logging
+
+Use `enabled=False` to disable all rate limiting without removing decorators or
+middleware:
+
+```python
+limiter = FalconRateLimiter(enabled=False)
+```
+
+Use `swallow_errors=True` to log request-time limiter failures and allow the
+request to continue instead of surfacing the error:
+
+```python
+limiter = FalconRateLimiter(swallow_errors=True)
+```
+
+Constructor arguments remain the source of truth, but when you leave them
+unset the limiter can read defaults from environment variables:
+
+- `RATELIMIT_ENABLED`
+- `RATELIMIT_HEADERS_ENABLED`
+- `RATELIMIT_STORAGE_URL`
+- `RATELIMIT_LIMIT_UNDECORATED_ROUTES`
+- `RATELIMIT_SWALLOW_ERRORS`
+- `RATELIMIT_RECOVERY_BACKOFF_SECONDS`
+- `RATELIMIT_MAX_RECOVERY_BACKOFF_SECONDS`
+
+Example:
+
+```bash
+export RATELIMIT_ENABLED=true
+export RATELIMIT_STORAGE_URL=redis://localhost:6379/0
+export RATELIMIT_SWALLOW_ERRORS=false
+```
+
+Operational events are logged through the dedicated `falcon-rate-limiter`
+logger, including rate-limit hits, storage fallback/recovery, and swallowed
+request-time limiter errors.
+
 ## Middleware-based rate limiting
 
 Phase 3.1 introduces `FalconRateLimitMiddleware`. This is useful when you want

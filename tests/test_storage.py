@@ -4,6 +4,7 @@ from limits.errors import StorageError
 from limits.storage import MemoryStorage, storage_from_string
 
 from limiter.constants import (
+    LOGGER_NAME,
     PRIMARY_STORAGE_RECOVERED_LOG_MESSAGE,
     PRIMARY_STORAGE_STILL_UNAVAILABLE_LOG_MESSAGE,
 )
@@ -105,7 +106,7 @@ def test_storage_controller_logs_failed_recovery_probe(
     )
 
     storage.available = False
-    with caplog.at_level("WARNING", logger="falcon-rate-limiter"):
+    with caplog.at_level("WARNING", logger=LOGGER_NAME):
         controller.limiter_for_enforcement()
 
     assert PRIMARY_STORAGE_STILL_UNAVAILABLE_LOG_MESSAGE in caplog.text
@@ -125,7 +126,7 @@ def test_storage_controller_logs_primary_recovery(
     )
 
     storage.available = True
-    with caplog.at_level("INFO", logger="falcon-rate-limiter"):
+    with caplog.at_level("INFO", logger=LOGGER_NAME):
         controller.limiter_for_enforcement()
 
     assert PRIMARY_STORAGE_RECOVERED_LOG_MESSAGE in caplog.text

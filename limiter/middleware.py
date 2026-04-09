@@ -154,6 +154,7 @@ class FalconRateLimitMiddleware:
         responder = getattr(resource, f"on_{req.method.lower()}", None)
         if (
             responder is None
+            or not self._limiter.enabled
             or not self._limiter.limit_undecorated_routes
             or self._resolved_limit is None
         ):
@@ -192,6 +193,7 @@ class FalconRateLimitMiddleware:
         responder = getattr(resource, f"on_{req.method.lower()}", None)
         if (
             responder is None
+            or not self._limiter.enabled
             or not self._limiter.limit_undecorated_routes
             or self._resolved_limit is None
         ):

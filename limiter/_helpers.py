@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from dataclasses import dataclass
 import time
 from typing import Any, Callable, cast
@@ -8,8 +9,11 @@ from limits import RateLimitItem
 from limits.strategies import FixedWindowRateLimiter
 from limits.util import WindowStats
 
+from limiter.constants import LOGGER_NAME, RATE_LIMIT_EXCEEDED_LOG_MESSAGE
+
 _RATE_LIMIT_DECORATED_ATTR = "__falcon_rate_limit_decorated__"
 _RATE_LIMIT_EXEMPT_ATTR = "__falcon_rate_limit_exempt__"
+_LIMITER_LOGGER = logging.getLogger(LOGGER_NAME)
 
 
 @dataclass(frozen=True)
@@ -315,6 +319,7 @@ def _check_rate_limit(
     if headers_enabled and stats is not None:
         _set_rate_limit_headers(resp, stats, resolved_limit.requests)
     if not allowed:
+        _LIMITER_LOGGER.info("%s %s", RATE_LIMIT_EXCEEDED_LOG_MESSAGE, key)
         raise falcon.HTTPTooManyRequests(
             description=resolved_limit.rejection_message,
             retry_after=_retry_after_seconds(stats),
@@ -372,6 +377,7 @@ async def _check_rate_limit_async(
     if headers_enabled and stats is not None:
         _set_rate_limit_headers(resp, stats, resolved_limit.requests)
     if not allowed:
+        _LIMITER_LOGGER.info("%s %s", RATE_LIMIT_EXCEEDED_LOG_MESSAGE, key)
         raise falcon.HTTPTooManyRequests(
             description=resolved_limit.rejection_message,
             retry_after=_retry_after_seconds(stats),

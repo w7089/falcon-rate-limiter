@@ -9,13 +9,14 @@ from redis.exceptions import RedisError
 
 from limiter.constants import (
     IN_MEMORY_FALLBACK_LOG_MESSAGE,
+    LOGGER_NAME,
     PRIMARY_STORAGE_FAILED_DURING_REQUEST_MESSAGE,
     PRIMARY_STORAGE_RECOVERED_LOG_MESSAGE,
     PRIMARY_STORAGE_STILL_UNAVAILABLE_LOG_MESSAGE,
     PRIMARY_STORAGE_UNAVAILABLE_MESSAGE,
 )
 
-_STORAGE_LOGGER = logging.getLogger("falcon-rate-limiter")
+_STORAGE_LOGGER = logging.getLogger(LOGGER_NAME)
 STORAGE_BACKEND_EXCEPTIONS = (
     StorageError,
     RedisError,
