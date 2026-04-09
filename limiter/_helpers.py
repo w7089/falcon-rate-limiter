@@ -23,6 +23,8 @@ class RateLimitDefinition:
         rejection_message: Message returned in HTTP 429 responses.
         exempt_when: Optional request predicate that skips rate limiting when
             it returns ``True``.
+        cost: Either a static hit cost or a request-based callable that returns
+            the hit cost for each request.
         methods: Optional uppercase HTTP methods that should trigger the limit.
             ``None`` means the limit applies to every request method.
         per_method: Whether requests that share the same responder should use
@@ -34,6 +36,7 @@ class RateLimitDefinition:
     key_func: Callable[[falcon.Request], str]
     rejection_message: str
     exempt_when: Callable[[falcon.Request], bool] | None = None
+    cost: int | Callable[[falcon.Request], int] = 1
     methods: frozenset[str] | None = None
     per_method: bool = False
 
@@ -205,6 +208,33 @@ def _scope_for_limit(
     return f"{scope}:{req.method.upper()}"
 
 
+def _request_cost(
+    req: falcon.Request,
+    resolved_limit: RateLimitDefinition,
+) -> int:
+    """Return the hit cost that should be applied for a request.
+
+    Args:
+        req: The incoming Falcon request.
+        resolved_limit: The limit configuration being enforced.
+
+    Returns:
+        A positive integer cost to pass to the ``limits`` backend.
+
+    Raises:
+        ValueError: When the resolved cost is not a positive integer.
+    """
+
+    cost = (
+        resolved_limit.cost(req)
+        if callable(resolved_limit.cost)
+        else resolved_limit.cost
+    )
+    if not isinstance(cost, int) or isinstance(cost, bool) or cost <= 0:
+        raise ValueError("cost must resolve to a positive integer")
+    return cost
+
+
 def _set_rate_limit_headers(
     resp: falcon.Response,
     stats: WindowStats,
@@ -272,12 +302,13 @@ def _check_rate_limit(
     if _request_is_exempt_from_limit(req, resolved_limit):
         return
 
+    cost = _request_cost(req, resolved_limit)
     key = _build_rate_limit_key(
         req,
         _scope_for_limit(req, scope, resolved_limit),
         resolved_limit.key_func,
     )
-    allowed = limiter.hit(resolved_limit.rate_limit_item, key)
+    allowed = limiter.hit(resolved_limit.rate_limit_item, key, cost=cost)
     stats: WindowStats | None = None
     if headers_enabled or not allowed:
         stats = limiter.get_window_stats(resolved_limit.rate_limit_item, key)
@@ -320,6 +351,7 @@ async def _check_rate_limit_async(
     if _request_is_exempt_from_limit(req, resolved_limit):
         return
 
+    cost = _request_cost(req, resolved_limit)
     key = _build_rate_limit_key(
         req,
         _scope_for_limit(req, scope, resolved_limit),
@@ -328,7 +360,7 @@ async def _check_rate_limit_async(
 
     def _hit_and_stats() -> tuple[bool, WindowStats | None]:
         """Run blocking limiter calls in a thread pool."""
-        allowed = limiter.hit(resolved_limit.rate_limit_item, key)
+        allowed = limiter.hit(resolved_limit.rate_limit_item, key, cost=cost)
         stats = (
             limiter.get_window_stats(resolved_limit.rate_limit_item, key)
             if headers_enabled or not allowed

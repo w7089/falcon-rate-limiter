@@ -136,6 +136,7 @@ class FalconRateLimiter:
         key_func: Callable[[falcon.Request], str] | None = None,
         error_message: str | None = None,
         exempt_when: Callable[[falcon.Request], bool] | None = None,
+        cost: int | Callable[[falcon.Request], int] = 1,
         methods: list[str] | tuple[str, ...] | None = None,
         per_method: bool = False,
     ) -> RateLimitDefinition:
@@ -148,19 +149,28 @@ class FalconRateLimiter:
             error_message: Custom message for HTTP 429 responses.
             exempt_when: Optional request predicate that skips rate limiting
                 when it returns ``True``.
+            cost: Either a static hit cost or a request-based callable that
+                returns the hit cost for each request.
             methods: Optional HTTP methods that should trigger the limit.
             per_method: Whether requests that share the same responder should
                 keep separate counters per HTTP method.
 
         Returns:
             A ``RateLimitDefinition`` that can be passed to ``enforce_limit``.
+
+        Raises:
+            ValueError: When ``methods`` is empty or a static ``cost`` is not a
+                positive integer.
         """
+        if isinstance(cost, int) and (isinstance(cost, bool) or cost <= 0):
+            raise ValueError("cost must be a positive integer")
         return RateLimitDefinition(
             requests=requests,
             rate_limit_item=_create_rate_limit_item(requests, per),
             key_func=self._resolve_key_func(key_func),
             rejection_message=error_message or DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE,
             exempt_when=exempt_when,
+            cost=cost,
             methods=self._normalize_methods(methods),
             per_method=per_method,
         )
@@ -379,6 +389,7 @@ class FalconRateLimiter:
         key_func: Callable[[falcon.Request], str] | None = None,
         error_message: str | None = None,
         exempt_when: Callable[[falcon.Request], bool] | None = None,
+        cost: int | Callable[[falcon.Request], int] = 1,
         methods: list[str] | tuple[str, ...] | None = None,
         per_method: bool = False,
     ) -> Callable[[Any], Any]:
@@ -395,6 +406,8 @@ class FalconRateLimiter:
             error_message: Custom message for HTTP 429 responses.
             exempt_when: Optional request predicate that skips rate limiting
                 when it returns ``True``.
+            cost: Either a static hit cost or a request-based callable that
+                returns the hit cost for each request.
             methods: Optional HTTP methods that should trigger the limit.
             per_method: Whether requests that share the same responder should
                 keep separate counters per HTTP method.
@@ -414,6 +427,7 @@ class FalconRateLimiter:
             key_func=key_func,
             error_message=error_message,
             exempt_when=exempt_when,
+            cost=cost,
             methods=methods,
             per_method=per_method,
         )

@@ -310,6 +310,56 @@ def test_exempt_when_skips_middleware_limits() -> None:
     assert client.get("/middleware-conditional-exempt").status_code == HTTP_429
 
 
+def test_static_cost_consumes_multiple_hits(client: TestClient) -> None:
+    assert client.get("/static-cost").status_code == HTTP_200
+    assert client.get("/static-cost").status_code == HTTP_429
+
+
+def test_dynamic_cost_uses_request_data(client: TestClient) -> None:
+    weighted_headers = {"X-Request-Cost": "2"}
+
+    assert client.get("/dynamic-cost").status_code == HTTP_200
+    assert client.get("/dynamic-cost", headers=weighted_headers).status_code == HTTP_200
+    assert client.get("/dynamic-cost").status_code == HTTP_429
+
+
+def test_async_static_cost_consumes_multiple_hits(async_client: TestClient) -> None:
+    assert async_client.get("/async-static-cost").status_code == HTTP_200
+    assert async_client.get("/async-static-cost").status_code == HTTP_429
+
+
+def test_async_dynamic_cost_uses_request_data(async_client: TestClient) -> None:
+    weighted_headers = {"X-Request-Cost": "2"}
+
+    assert async_client.get("/async-dynamic-cost").status_code == HTTP_200
+    assert (
+        async_client.get("/async-dynamic-cost", headers=weighted_headers).status_code
+        == HTTP_200
+    )
+    assert async_client.get("/async-dynamic-cost").status_code == HTTP_429
+
+
+def test_cost_applies_to_middleware_limits() -> None:
+    limiter = FalconRateLimiter()
+    middleware = FalconRateLimitMiddleware(
+        limiter,
+        requests=3,
+        per=relativedelta(seconds=1),
+        cost=2,
+    )
+
+    class MiddlewareCostResource:
+        def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.text = "ok"
+
+    app = falcon.App(middleware=[middleware])
+    app.add_route("/middleware-cost", MiddlewareCostResource())
+    client = TestClient(app)
+
+    assert client.get("/middleware-cost").status_code == HTTP_200
+    assert client.get("/middleware-cost").status_code == HTTP_429
+
+
 def test_exempt_decorator_skips_explicit_limits(client: TestClient) -> None:
     resp1 = client.get("/exempt-decorated")
     resp2 = client.get("/exempt-decorated")

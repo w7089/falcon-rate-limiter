@@ -26,6 +26,8 @@ class FalconRateLimitMiddleware:
         error_message: Custom message for HTTP 429 responses.
         exempt_when: Optional request predicate that skips rate limiting when
             it returns ``True``.
+        cost: Either a static hit cost or a request-based callable that returns
+            the hit cost for each request.
         methods: Optional HTTP methods that should trigger the limit.
         per_method: Whether requests that share the same responder should
             keep separate counters per HTTP method.
@@ -42,6 +44,7 @@ class FalconRateLimitMiddleware:
         key_func: Callable[[falcon.Request], str] | None = None,
         error_message: str | None = None,
         exempt_when: Callable[[falcon.Request], bool] | None = None,
+        cost: int | Callable[[falcon.Request], int] = 1,
         methods: list[str] | tuple[str, ...] | None = None,
         per_method: bool = False,
     ) -> None:
@@ -55,6 +58,7 @@ class FalconRateLimitMiddleware:
                 key_func=key_func,
                 error_message=error_message,
                 exempt_when=exempt_when,
+                cost=cost,
                 methods=methods,
                 per_method=per_method,
             )

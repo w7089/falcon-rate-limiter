@@ -100,6 +100,19 @@ class InternalHealthResource:
         resp.text = "healthy"
 ```
 
+Use `cost` when one request should consume more than one hit:
+
+```python
+class BulkUploadResource:
+    @limiter.rate_limit(
+        requests=100,
+        per=relativedelta(minutes=1),
+        cost=lambda req: int(req.get_header("X-Operation-Cost") or "1"),
+    )
+    def on_post(self, req: falcon.Request, resp: falcon.Response) -> None:
+        resp.text = "accepted"
+```
+
 Or decorate an entire resource class:
 
 ```python

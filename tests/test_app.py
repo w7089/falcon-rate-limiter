@@ -15,6 +15,9 @@ def create_app() -> falcon.App:
     def internal_request(req: falcon.Request) -> bool:
         return req.get_header("X-Internal") == "true"
 
+    def request_cost(req: falcon.Request) -> int:
+        return int(req.get_header("X-Request-Cost") or "1")
+
     class TestResource:
         @limiter.rate_limit(requests=2, per=relativedelta(seconds=1))
         def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
@@ -81,6 +84,26 @@ def create_app() -> falcon.App:
             resp.status = falcon.HTTP_200
             resp.text = "CONDITIONAL EXEMPT OK"
 
+    class StaticCostResource:
+        @limiter.rate_limit(
+            requests=3,
+            per=relativedelta(seconds=1),
+            cost=2,
+        )
+        def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.status = falcon.HTTP_200
+            resp.text = "STATIC COST OK"
+
+    class DynamicCostResource:
+        @limiter.rate_limit(
+            requests=3,
+            per=relativedelta(seconds=1),
+            cost=request_cost,
+        )
+        def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.status = falcon.HTTP_200
+            resp.text = "DYNAMIC COST OK"
+
     class ExemptDecoratedResource:
         @limiter.exempt
         @limiter.rate_limit(
@@ -114,6 +137,8 @@ def create_app() -> falcon.App:
     app.add_route("/method-filtered", MethodFilteredResource())
     app.add_route("/per-method", PerMethodResource())
     app.add_route("/conditional-exempt", ConditionalExemptResource())
+    app.add_route("/static-cost", StaticCostResource())
+    app.add_route("/dynamic-cost", DynamicCostResource())
     app.add_route("/exempt-decorated", ExemptDecoratedResource())
     app.add_route("/class-test", ClassDecoratedResource())
     app.add_route("/class-per-client", ClassPerClientResource())
@@ -128,6 +153,9 @@ def create_async_app() -> falcon.asgi.App:
 
     def internal_request(req: falcon.Request) -> bool:
         return req.get_header("X-Internal") == "true"
+
+    def request_cost(req: falcon.Request) -> int:
+        return int(req.get_header("X-Request-Cost") or "1")
 
     class AsyncTestResource:
         @limiter.rate_limit(requests=2, per=relativedelta(seconds=1))
@@ -195,6 +223,26 @@ def create_async_app() -> falcon.asgi.App:
             resp.status = falcon.HTTP_200
             resp.text = "ASYNC CONDITIONAL EXEMPT OK"
 
+    class AsyncStaticCostResource:
+        @limiter.rate_limit(
+            requests=3,
+            per=relativedelta(seconds=1),
+            cost=2,
+        )
+        async def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.status = falcon.HTTP_200
+            resp.text = "ASYNC STATIC COST OK"
+
+    class AsyncDynamicCostResource:
+        @limiter.rate_limit(
+            requests=3,
+            per=relativedelta(seconds=1),
+            cost=request_cost,
+        )
+        async def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.status = falcon.HTTP_200
+            resp.text = "ASYNC DYNAMIC COST OK"
+
     class AsyncExemptDecoratedResource:
         @limiter.exempt
         @limiter.rate_limit(requests=1, per=relativedelta(seconds=1))
@@ -215,6 +263,8 @@ def create_async_app() -> falcon.asgi.App:
     app.add_route("/async-method-filtered", AsyncMethodFilteredResource())
     app.add_route("/async-per-method", AsyncPerMethodResource())
     app.add_route("/async-conditional-exempt", AsyncConditionalExemptResource())
+    app.add_route("/async-static-cost", AsyncStaticCostResource())
+    app.add_route("/async-dynamic-cost", AsyncDynamicCostResource())
     app.add_route("/async-exempt-decorated", AsyncExemptDecoratedResource())
     app.add_route("/async-class-test", AsyncClassDecoratedResource())
     return app
