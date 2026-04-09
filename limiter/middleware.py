@@ -17,16 +17,18 @@ class FalconRateLimitMiddleware:
     enforce limits on responders that do not have explicit ``@rate_limit``
     decorators. It skips routes that are already decorated or marked exempt.
 
-        Args:
-            limiter: The ``FalconRateLimiter`` instance to use for enforcement.
-            requests: Explicit limit count (requires ``per``). If omitted, uses
-                the limiter's default limit.
-            per: Explicit time window (requires ``requests``).
-            key_func: Optional override for client key extraction.
-            error_message: Custom message for HTTP 429 responses.
-            methods: Optional HTTP methods that should trigger the limit.
-            per_method: Whether requests that share the same responder should
-                keep separate counters per HTTP method.
+    Args:
+        limiter: The ``FalconRateLimiter`` instance to use for enforcement.
+        requests: Explicit limit count (requires ``per``). If omitted, uses
+            the limiter's default limit.
+        per: Explicit time window (requires ``requests``).
+        key_func: Optional override for client key extraction.
+        error_message: Custom message for HTTP 429 responses.
+        exempt_when: Optional request predicate that skips rate limiting when
+            it returns ``True``.
+        methods: Optional HTTP methods that should trigger the limit.
+        per_method: Whether requests that share the same responder should
+            keep separate counters per HTTP method.
 
     Raises:
         ValueError: When only one of ``requests`` or ``per`` is provided.
@@ -39,6 +41,7 @@ class FalconRateLimitMiddleware:
         per: relativedelta | None = None,
         key_func: Callable[[falcon.Request], str] | None = None,
         error_message: str | None = None,
+        exempt_when: Callable[[falcon.Request], bool] | None = None,
         methods: list[str] | tuple[str, ...] | None = None,
         per_method: bool = False,
     ) -> None:
@@ -51,6 +54,7 @@ class FalconRateLimitMiddleware:
                 per=per,
                 key_func=key_func,
                 error_message=error_message,
+                exempt_when=exempt_when,
                 methods=methods,
                 per_method=per_method,
             )

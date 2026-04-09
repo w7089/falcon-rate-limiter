@@ -87,6 +87,19 @@ class StatusResource:
         resp.text = "ok"
 ```
 
+Use `exempt_when` for request-based exemptions:
+
+```python
+class InternalHealthResource:
+    @limiter.rate_limit(
+        requests=5,
+        per=relativedelta(minutes=1),
+        exempt_when=lambda req: req.get_header("X-Internal") == "true",
+    )
+    def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+        resp.text = "healthy"
+```
+
 Or decorate an entire resource class:
 
 ```python

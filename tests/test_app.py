@@ -12,6 +12,9 @@ def create_app() -> falcon.App:
     def client_key(req: falcon.Request) -> str:
         return req.get_header("X-Client-Id") or req.remote_addr or "global"
 
+    def internal_request(req: falcon.Request) -> bool:
+        return req.get_header("X-Internal") == "true"
+
     class TestResource:
         @limiter.rate_limit(requests=2, per=relativedelta(seconds=1))
         def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
@@ -68,6 +71,16 @@ def create_app() -> falcon.App:
         on_get = handle
         on_post = handle
 
+    class ConditionalExemptResource:
+        @limiter.rate_limit(
+            requests=1,
+            per=relativedelta(seconds=1),
+            exempt_when=internal_request,
+        )
+        def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.status = falcon.HTTP_200
+            resp.text = "CONDITIONAL EXEMPT OK"
+
     class ExemptDecoratedResource:
         @limiter.exempt
         @limiter.rate_limit(
@@ -100,6 +113,7 @@ def create_app() -> falcon.App:
     app.add_route("/custom-message", CustomMessageResource())
     app.add_route("/method-filtered", MethodFilteredResource())
     app.add_route("/per-method", PerMethodResource())
+    app.add_route("/conditional-exempt", ConditionalExemptResource())
     app.add_route("/exempt-decorated", ExemptDecoratedResource())
     app.add_route("/class-test", ClassDecoratedResource())
     app.add_route("/class-per-client", ClassPerClientResource())
@@ -111,6 +125,9 @@ def create_async_app() -> falcon.asgi.App:
 
     def client_key(req: falcon.Request) -> str:
         return req.get_header("X-Client-Id") or req.remote_addr or "global"
+
+    def internal_request(req: falcon.Request) -> bool:
+        return req.get_header("X-Internal") == "true"
 
     class AsyncTestResource:
         @limiter.rate_limit(requests=2, per=relativedelta(seconds=1))
@@ -168,6 +185,16 @@ def create_async_app() -> falcon.asgi.App:
         on_get = handle
         on_post = handle
 
+    class AsyncConditionalExemptResource:
+        @limiter.rate_limit(
+            requests=1,
+            per=relativedelta(seconds=1),
+            exempt_when=internal_request,
+        )
+        async def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.status = falcon.HTTP_200
+            resp.text = "ASYNC CONDITIONAL EXEMPT OK"
+
     class AsyncExemptDecoratedResource:
         @limiter.exempt
         @limiter.rate_limit(requests=1, per=relativedelta(seconds=1))
@@ -187,6 +214,7 @@ def create_async_app() -> falcon.asgi.App:
     app.add_route("/async-custom-message", AsyncCustomMessageResource())
     app.add_route("/async-method-filtered", AsyncMethodFilteredResource())
     app.add_route("/async-per-method", AsyncPerMethodResource())
+    app.add_route("/async-conditional-exempt", AsyncConditionalExemptResource())
     app.add_route("/async-exempt-decorated", AsyncExemptDecoratedResource())
     app.add_route("/async-class-test", AsyncClassDecoratedResource())
     return app

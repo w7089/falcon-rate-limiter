@@ -21,6 +21,8 @@ class RateLimitDefinition:
         rate_limit_item: The ``limits`` library item used for storage lookups.
         key_func: Function that extracts the client identifier from a request.
         rejection_message: Message returned in HTTP 429 responses.
+        exempt_when: Optional request predicate that skips rate limiting when
+            it returns ``True``.
         methods: Optional uppercase HTTP methods that should trigger the limit.
             ``None`` means the limit applies to every request method.
         per_method: Whether requests that share the same responder should use
@@ -31,6 +33,7 @@ class RateLimitDefinition:
     rate_limit_item: RateLimitItem
     key_func: Callable[[falcon.Request], str]
     rejection_message: str
+    exempt_when: Callable[[falcon.Request], bool] | None = None
     methods: frozenset[str] | None = None
     per_method: bool = False
 
@@ -162,6 +165,25 @@ def _request_method_matches_limit(
     return req.method.upper() in resolved_limit.methods
 
 
+def _request_is_exempt_from_limit(
+    req: falcon.Request, resolved_limit: RateLimitDefinition
+) -> bool:
+    """Return whether a request should bypass a configured rate limit.
+
+    Args:
+        req: The incoming Falcon request.
+        resolved_limit: The limit configuration being evaluated.
+
+    Returns:
+        ``True`` when ``exempt_when`` is configured and returns ``True`` for the
+        request, otherwise ``False``.
+    """
+
+    if resolved_limit.exempt_when is None:
+        return False
+    return resolved_limit.exempt_when(req)
+
+
 def _scope_for_limit(
     req: falcon.Request,
     scope: str,
@@ -247,6 +269,8 @@ def _check_rate_limit(
     """
     if not _request_method_matches_limit(req, resolved_limit):
         return
+    if _request_is_exempt_from_limit(req, resolved_limit):
+        return
 
     key = _build_rate_limit_key(
         req,
@@ -292,6 +316,8 @@ async def _check_rate_limit_async(
         falcon.HTTPTooManyRequests: When the rate limit is exceeded.
     """
     if not _request_method_matches_limit(req, resolved_limit):
+        return
+    if _request_is_exempt_from_limit(req, resolved_limit):
         return
 
     key = _build_rate_limit_key(

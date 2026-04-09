@@ -238,6 +238,78 @@ def test_async_per_method_keeps_get_and_post_counters_separate(
     assert second_post.status_code == HTTP_429
 
 
+def test_exempt_when_skips_decorated_limits(client: TestClient) -> None:
+    internal_headers = {"X-Internal": "true"}
+
+    assert (
+        client.get("/conditional-exempt", headers=internal_headers).status_code
+        == HTTP_200
+    )
+    assert (
+        client.get("/conditional-exempt", headers=internal_headers).status_code
+        == HTTP_200
+    )
+
+    assert client.get("/conditional-exempt").status_code == HTTP_200
+    assert client.get("/conditional-exempt").status_code == HTTP_429
+
+
+def test_async_exempt_when_skips_decorated_limits(async_client: TestClient) -> None:
+    internal_headers = {"X-Internal": "true"}
+
+    assert (
+        async_client.get(
+            "/async-conditional-exempt", headers=internal_headers
+        ).status_code
+        == HTTP_200
+    )
+    assert (
+        async_client.get(
+            "/async-conditional-exempt", headers=internal_headers
+        ).status_code
+        == HTTP_200
+    )
+
+    assert async_client.get("/async-conditional-exempt").status_code == HTTP_200
+    assert async_client.get("/async-conditional-exempt").status_code == HTTP_429
+
+
+def test_exempt_when_skips_middleware_limits() -> None:
+    limiter = FalconRateLimiter()
+    middleware = FalconRateLimitMiddleware(
+        limiter,
+        requests=1,
+        per=relativedelta(seconds=1),
+        exempt_when=lambda req: req.get_header("X-Internal") == "true",
+    )
+
+    class MiddlewareConditionalExemptResource:
+        def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.text = "ok"
+
+    app = falcon.App(middleware=[middleware])
+    app.add_route(
+        "/middleware-conditional-exempt", MiddlewareConditionalExemptResource()
+    )
+    client = TestClient(app)
+
+    internal_headers = {"X-Internal": "true"}
+    assert (
+        client.get(
+            "/middleware-conditional-exempt", headers=internal_headers
+        ).status_code
+        == HTTP_200
+    )
+    assert (
+        client.get(
+            "/middleware-conditional-exempt", headers=internal_headers
+        ).status_code
+        == HTTP_200
+    )
+    assert client.get("/middleware-conditional-exempt").status_code == HTTP_200
+    assert client.get("/middleware-conditional-exempt").status_code == HTTP_429
+
+
 def test_exempt_decorator_skips_explicit_limits(client: TestClient) -> None:
     resp1 = client.get("/exempt-decorated")
     resp2 = client.get("/exempt-decorated")

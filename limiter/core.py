@@ -135,6 +135,7 @@ class FalconRateLimiter:
         per: relativedelta,
         key_func: Callable[[falcon.Request], str] | None = None,
         error_message: str | None = None,
+        exempt_when: Callable[[falcon.Request], bool] | None = None,
         methods: list[str] | tuple[str, ...] | None = None,
         per_method: bool = False,
     ) -> RateLimitDefinition:
@@ -145,6 +146,8 @@ class FalconRateLimiter:
             per: Time window duration (e.g., ``relativedelta(minutes=1)``).
             key_func: Optional override for the client key extraction function.
             error_message: Custom message for HTTP 429 responses.
+            exempt_when: Optional request predicate that skips rate limiting
+                when it returns ``True``.
             methods: Optional HTTP methods that should trigger the limit.
             per_method: Whether requests that share the same responder should
                 keep separate counters per HTTP method.
@@ -157,6 +160,7 @@ class FalconRateLimiter:
             rate_limit_item=_create_rate_limit_item(requests, per),
             key_func=self._resolve_key_func(key_func),
             rejection_message=error_message or DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE,
+            exempt_when=exempt_when,
             methods=self._normalize_methods(methods),
             per_method=per_method,
         )
@@ -374,6 +378,7 @@ class FalconRateLimiter:
         per: relativedelta,
         key_func: Callable[[falcon.Request], str] | None = None,
         error_message: str | None = None,
+        exempt_when: Callable[[falcon.Request], bool] | None = None,
         methods: list[str] | tuple[str, ...] | None = None,
         per_method: bool = False,
     ) -> Callable[[Any], Any]:
@@ -388,6 +393,8 @@ class FalconRateLimiter:
             per: Time window duration (e.g., ``relativedelta(seconds=10)``).
             key_func: Optional override for client key extraction.
             error_message: Custom message for HTTP 429 responses.
+            exempt_when: Optional request predicate that skips rate limiting
+                when it returns ``True``.
             methods: Optional HTTP methods that should trigger the limit.
             per_method: Whether requests that share the same responder should
                 keep separate counters per HTTP method.
@@ -406,6 +413,7 @@ class FalconRateLimiter:
             per=per,
             key_func=key_func,
             error_message=error_message,
+            exempt_when=exempt_when,
             methods=methods,
             per_method=per_method,
         )
