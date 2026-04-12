@@ -2,8 +2,6 @@ import pytest
 import falcon
 from dateutil.relativedelta import relativedelta
 from falcon.testing import TestClient
-from falcon import App
-from falcon.asgi import App as ASGIApp
 from http import HTTPStatus
 
 from limiter import FalconRateLimitMiddleware
@@ -13,49 +11,12 @@ from limiter.constants import (
 )
 from limiter.core import FalconRateLimiter
 from tests.test_app import (
-    create_app,
-    create_async_app,
     create_async_middleware_app,
     create_middleware_app,
 )
 
 HTTP_200 = HTTPStatus.OK
 HTTP_429 = HTTPStatus.TOO_MANY_REQUESTS
-
-
-@pytest.fixture
-def limiter() -> FalconRateLimiter:
-    return FalconRateLimiter()
-
-
-@pytest.fixture
-def falcon_app() -> App:
-    return create_app()
-
-
-@pytest.fixture
-def client(falcon_app: App) -> TestClient:
-    return TestClient(falcon_app)
-
-
-@pytest.fixture
-def async_falcon_app() -> ASGIApp:
-    return create_async_app()
-
-
-@pytest.fixture
-def async_client(async_falcon_app: ASGIApp) -> TestClient:
-    return TestClient(async_falcon_app)
-
-
-@pytest.fixture
-def middleware_client() -> TestClient:
-    return TestClient(create_middleware_app())
-
-
-@pytest.fixture
-def async_middleware_client() -> TestClient:
-    return TestClient(create_async_middleware_app())
 
 
 def test_rate_limit_allows_requests(client: TestClient) -> None:
@@ -276,8 +237,7 @@ def test_rate_limit_headers_on_blocked_request(client: TestClient) -> None:
     assert "Retry-After" in resp.headers
 
 
-def test_headers_disabled(falcon_app: App) -> None:
-    from limiter.core import FalconRateLimiter
+def test_headers_disabled(falcon_app: falcon.App) -> None:
     from dateutil.relativedelta import relativedelta
     import falcon
 
