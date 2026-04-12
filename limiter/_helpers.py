@@ -202,13 +202,13 @@ def _check_rate_limit(
     Raises:
         falcon.HTTPTooManyRequests: When the rate limit is exceeded.
     """
-    key = _build_rate_limit_key(req, scope, resolved_limit.key_func)
     # rate limit only specific methods
     if (
         resolved_limit.methods is not None
         and req.method.upper() not in resolved_limit.methods
     ):
         return
+    key = _build_rate_limit_key(req, scope, resolved_limit.key_func)
     allowed = limiter.hit(resolved_limit.rate_limit_item, key)
     stats: WindowStats | None = None
     if headers_enabled or not allowed:
@@ -247,12 +247,13 @@ async def _check_rate_limit_async(
     Raises:
         falcon.HTTPTooManyRequests: When the rate limit is exceeded.
     """
-    key = _build_rate_limit_key(req, scope, resolved_limit.key_func)
+    # rate limit only specific methods
     if (
         resolved_limit.methods is not None
         and req.method.upper() not in resolved_limit.methods
     ):
         return
+    key = _build_rate_limit_key(req, scope, resolved_limit.key_func)
 
     def _hit_and_stats() -> tuple[bool, WindowStats | None]:
         """Run blocking limiter calls in a thread pool."""
