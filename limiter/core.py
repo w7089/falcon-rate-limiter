@@ -46,6 +46,7 @@ class FalconRateLimiter:
 
     def __init__(
         self,
+        *,
         storage: Storage | None = None,
         storage_uri: str | None = None,
         key_func: Callable[[falcon.Request], str] | None = None,
@@ -134,9 +135,10 @@ class FalconRateLimiter:
         self,
         requests: int,
         per: relativedelta,
+        *,
         key_func: Callable[[falcon.Request], str] | None = None,
-        methods: Iterable[str] | None = None,
         error_message: str | None = None,
+        methods: Iterable[str] | None = None,
     ) -> RateLimitDefinition:
         """Create a reusable rate limit definition.
 
@@ -347,9 +349,10 @@ class FalconRateLimiter:
         self,
         requests: int,
         per: relativedelta,
+        *,
         key_func: Callable[[falcon.Request], str] | None = None,
-        methods: Iterable[str] | None = None,
         error_message: str | None = None,
+        methods: Iterable[str] | None = None,
     ) -> Callable[[Any], Any]:
         """Decorator to apply a rate limit to a responder or resource class.
 
@@ -378,8 +381,8 @@ class FalconRateLimiter:
             requests=requests,
             per=per,
             key_func=key_func,
-            methods=methods,
             error_message=error_message,
+            methods=methods,
         )
 
         def decorator(target: Any) -> Any:
