@@ -11,6 +11,8 @@ from limits import (
 )
 from typing import Sequence, cast, Iterable
 
+from limiter.constants import EMPTY_METHODS_ERROR_MESSAGE
+
 
 def _create_rate_limit_item(requests: int, per: relativedelta) -> RateLimitItem:
     """Create a ``limits`` library RateLimitItem from a relativedelta.
@@ -70,4 +72,8 @@ def _get_remote_address(req: falcon.Request) -> str:
 def _normalize_methods(methods: Iterable[str] | None) -> frozenset[str] | None:
     if methods is None:
         return None
-    return frozenset(method.upper() for method in methods)
+
+    normalized = frozenset(method.upper() for method in methods)
+    if not normalized:
+        raise ValueError(EMPTY_METHODS_ERROR_MESSAGE)
+    return normalized

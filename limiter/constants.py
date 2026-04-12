@@ -1,6 +1,7 @@
 """Shared constants for user-visible limiter messages and storage events."""
 
 DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE = "Rate limit exceeded"
+EMPTY_METHODS_ERROR_MESSAGE = "methods must contain at least one HTTP method"
 
 PRIMARY_STORAGE_UNAVAILABLE_MESSAGE = (
     "Primary storage is unavailable during initialization"
