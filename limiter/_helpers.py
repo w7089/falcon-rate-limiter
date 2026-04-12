@@ -21,7 +21,7 @@ class RateLimitDefinition:
         rate_limit_item: The ``limits`` library item used for storage lookups.
         key_func: Function that extracts the client identifier from a request.
         rejection_message: Message returned in HTTP 429 responses.
-        methods: HTTP methods to apply the rate limiter on
+        methods: Optional HTTP method filter. ``None`` means all methods.
     """
 
     requests: int
@@ -202,7 +202,7 @@ def _check_rate_limit(
     Raises:
         falcon.HTTPTooManyRequests: When the rate limit is exceeded.
     """
-    # rate limit only specific methods
+    # Skip requests outside an explicit method filter.
     if (
         resolved_limit.methods is not None
         and req.method.upper() not in resolved_limit.methods
@@ -247,7 +247,7 @@ async def _check_rate_limit_async(
     Raises:
         falcon.HTTPTooManyRequests: When the rate limit is exceeded.
     """
-    # rate limit only specific methods
+    # Skip requests outside an explicit method filter.
     if (
         resolved_limit.methods is not None
         and req.method.upper() not in resolved_limit.methods

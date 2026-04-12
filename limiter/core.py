@@ -145,11 +145,11 @@ class FalconRateLimiter:
             per: Time window duration (e.g., ``relativedelta(minutes=1)``).
             key_func: Optional override for the client key extraction function.
             error_message: Custom message for HTTP 429 responses.
-            methods: HTTP methods to apply the rate limiter on
+            methods: Optional HTTP method filter. When provided, the limit is
+                enforced only for matching request methods.
 
         Returns:
             A ``RateLimitDefinition`` that can be passed to ``enforce_limit``.
-            :param methods:
         """
         normalized_methods = _normalize_methods(methods)
         return RateLimitDefinition(
@@ -362,7 +362,8 @@ class FalconRateLimiter:
             per: Time window duration (e.g., ``relativedelta(seconds=10)``).
             key_func: Optional override for client key extraction.
             error_message: Custom message for HTTP 429 responses.
-            methods: HTTP methods to apply the rate limiter on
+            methods: Optional HTTP method filter. When provided, the limit is
+                enforced only for matching request methods.
 
         Returns:
             A decorator that wraps the target with rate limit enforcement.

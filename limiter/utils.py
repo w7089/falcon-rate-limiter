@@ -70,6 +70,11 @@ def _get_remote_address(req: falcon.Request) -> str:
 
 
 def _normalize_methods(methods: Iterable[str] | None) -> frozenset[str] | None:
+    """Normalize an optional HTTP method filter.
+
+    ``None`` means no method filter. A provided iterable must contain at least
+    one method, and methods are stored uppercase for request-time comparison.
+    """
     if methods is None:
         return None
 
