@@ -17,6 +17,7 @@ This repository implements a rate limiter for the Falcon web framework, wrapping
 - Avoid calling private members from dependencies or framework internals.
 - Think through failure modes early: storage outages, invalid configuration, async behavior, middleware interactions, and fallback/recovery paths should be implemented and tested deliberately.
 - Cover new behavior across the surfaces it affects: unit tests, async/ASGI tests, and e2e tests when the feature touches integration points such as middleware, storage backends, or distributed behavior.
+- Put tests for each feature or subsystem in a dedicated test file. When an existing test file starts mixing unrelated behavior, split it before adding more cases so future feature work has an obvious home.
 - Document every shipped feature in `README.md` with practical examples and different usage scenarios, and add function docstrings that explain purpose, parameters, return values, exceptions, and any non-obvious reasoning.
 - Use logging for meaningful operational events, especially storage failures, fallback activation, and recovery. Choose log levels intentionally.
 - Prefer curated project-specific guidance over imported generic prompts. If borrowing an idea from external instruction sets, adapt it to Falcon, `limits`, and this repository's architecture before adding it here.

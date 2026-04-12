@@ -9,7 +9,9 @@ from limits import (
     RateLimitItemPerMonth,
     RateLimitItemPerYear,
 )
-from typing import Sequence, cast
+from typing import Sequence, cast, Iterable
+
+from limiter.constants import EMPTY_METHODS_ERROR_MESSAGE
 
 
 def _create_rate_limit_item(requests: int, per: relativedelta) -> RateLimitItem:
@@ -65,3 +67,18 @@ def _get_remote_address(req: falcon.Request) -> str:
         return access_route[0]
     remote_addr = req.remote_addr
     return remote_addr if remote_addr is not None else "global"
+
+
+def _normalize_methods(methods: Iterable[str] | None) -> frozenset[str] | None:
+    """Normalize an optional HTTP method filter.
+
+    ``None`` means no method filter. A provided iterable must contain at least
+    one method, and methods are stored uppercase for request-time comparison.
+    """
+    if methods is None:
+        return None
+
+    normalized = frozenset(method.upper() for method in methods)
+    if not normalized:
+        raise ValueError(EMPTY_METHODS_ERROR_MESSAGE)
+    return normalized

@@ -32,6 +32,7 @@ class FalconRateLimitMiddleware:
     def __init__(
         self,
         limiter: "FalconRateLimiter",
+        *,
         requests: int | None = None,
         per: relativedelta | None = None,
         key_func: Callable[[falcon.Request], str] | None = None,
