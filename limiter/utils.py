@@ -9,7 +9,7 @@ from limits import (
     RateLimitItemPerMonth,
     RateLimitItemPerYear,
 )
-from typing import Sequence, cast
+from typing import Sequence, cast, Iterable
 
 
 def _create_rate_limit_item(requests: int, per: relativedelta) -> RateLimitItem:
@@ -65,3 +65,9 @@ def _get_remote_address(req: falcon.Request) -> str:
         return access_route[0]
     remote_addr = req.remote_addr
     return remote_addr if remote_addr is not None else "global"
+
+
+def _normalize_methods(methods: Iterable[str] | None) -> frozenset[str] | None:
+    if methods is None:
+        return None
+    return frozenset(method.upper() for method in methods)

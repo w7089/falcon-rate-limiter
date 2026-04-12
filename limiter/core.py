@@ -1,6 +1,6 @@
 import inspect
 from functools import wraps
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 
 import falcon
 from dateutil.relativedelta import relativedelta
@@ -20,6 +20,7 @@ from limiter._storage import STORAGE_BACKEND_EXCEPTIONS, StorageController
 from limiter.utils import (
     _create_rate_limit_item,
     _get_remote_address,
+    _normalize_methods,
 )
 
 
@@ -134,6 +135,7 @@ class FalconRateLimiter:
         requests: int,
         per: relativedelta,
         key_func: Callable[[falcon.Request], str] | None = None,
+        methods: Iterable[str] | None = None,
         error_message: str | None = None,
     ) -> RateLimitDefinition:
         """Create a reusable rate limit definition.
@@ -143,15 +145,19 @@ class FalconRateLimiter:
             per: Time window duration (e.g., ``relativedelta(minutes=1)``).
             key_func: Optional override for the client key extraction function.
             error_message: Custom message for HTTP 429 responses.
+            methods: HTTP methods to apply the rate limiter on
 
         Returns:
             A ``RateLimitDefinition`` that can be passed to ``enforce_limit``.
+            :param methods:
         """
+        normalized_methods = _normalize_methods(methods)
         return RateLimitDefinition(
             requests=requests,
             rate_limit_item=_create_rate_limit_item(requests, per),
             key_func=self._resolve_key_func(key_func),
             rejection_message=error_message or DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE,
+            methods=normalized_methods,
         )
 
     def enforce_limit(
@@ -342,6 +348,7 @@ class FalconRateLimiter:
         requests: int,
         per: relativedelta,
         key_func: Callable[[falcon.Request], str] | None = None,
+        methods: Iterable[str] | None = None,
         error_message: str | None = None,
     ) -> Callable[[Any], Any]:
         """Decorator to apply a rate limit to a responder or resource class.
@@ -355,6 +362,7 @@ class FalconRateLimiter:
             per: Time window duration (e.g., ``relativedelta(seconds=10)``).
             key_func: Optional override for client key extraction.
             error_message: Custom message for HTTP 429 responses.
+            methods: HTTP methods to apply the rate limiter on
 
         Returns:
             A decorator that wraps the target with rate limit enforcement.
@@ -369,6 +377,7 @@ class FalconRateLimiter:
             requests=requests,
             per=per,
             key_func=key_func,
+            methods=methods,
             error_message=error_message,
         )
 
