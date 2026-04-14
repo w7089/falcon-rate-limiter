@@ -123,6 +123,53 @@ class TenantResource:
 Internally, each limit key combines the responder's `__qualname__` with the
 resolved client key, so different endpoints do not share counters by accident.
 
+## Method filters and per-method limits
+
+Use `methods` when a limit should apply only to specific HTTP methods:
+
+```python
+class SearchResource:
+    @limiter.rate_limit(
+        requests=5,
+        per=relativedelta(minutes=1),
+        methods=["GET"],
+    )
+    def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+        resp.media = {"items": []}
+```
+
+Requests whose method is not listed are skipped by that limit and do not consume
+quota.
+
+Use `per_method=True` when one configured limit should keep separate counters
+for each HTTP method:
+
+```python
+class UploadResource:
+    @limiter.rate_limit(
+        requests=10,
+        per=relativedelta(minutes=1),
+        per_method=True,
+    )
+    def on_post(self, req: falcon.Request, resp: falcon.Response) -> None:
+        resp.text = "uploaded"
+```
+
+`per_method=True` is also supported by `FalconRateLimitMiddleware`:
+
+```python
+middleware = FalconRateLimitMiddleware(
+    limiter,
+    requests=100,
+    per=relativedelta(minutes=1),
+    per_method=True,
+)
+```
+
+With the default responder scope, methods such as `on_get` and `on_post` often
+already have separate counters. `per_method=True` is most useful when a shared
+or manually chosen scope would otherwise group multiple HTTP methods together.
+
 ## Response headers
 
 When `headers_enabled=True` (the default), successful and rejected responses

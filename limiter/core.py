@@ -139,6 +139,7 @@ class FalconRateLimiter:
         key_func: Callable[[falcon.Request], str] | None = None,
         error_message: str | None = None,
         methods: Iterable[str] | None = None,
+        per_method: bool = False,
     ) -> RateLimitDefinition:
         """Create a reusable rate limit definition.
 
@@ -149,6 +150,8 @@ class FalconRateLimiter:
             error_message: Custom message for HTTP 429 responses.
             methods: Optional HTTP method filter. When provided, the limit is
                 enforced only for matching request methods.
+            per_method: Whether to include the request method in the
+                rate-limit key.
 
         Returns:
             A ``RateLimitDefinition`` that can be passed to ``enforce_limit``.
@@ -160,6 +163,7 @@ class FalconRateLimiter:
             key_func=self._resolve_key_func(key_func),
             rejection_message=error_message or DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE,
             methods=normalized_methods,
+            per_method=per_method,
         )
 
     def enforce_limit(
@@ -353,6 +357,7 @@ class FalconRateLimiter:
         key_func: Callable[[falcon.Request], str] | None = None,
         error_message: str | None = None,
         methods: Iterable[str] | None = None,
+        per_method: bool = False,
     ) -> Callable[[Any], Any]:
         """Decorator to apply a rate limit to a responder or resource class.
 
@@ -367,6 +372,8 @@ class FalconRateLimiter:
             error_message: Custom message for HTTP 429 responses.
             methods: Optional HTTP method filter. When provided, the limit is
                 enforced only for matching request methods.
+            per_method: Whether to include the request method in the
+                rate-limit key.
 
         Returns:
             A decorator that wraps the target with rate limit enforcement.
@@ -383,6 +390,7 @@ class FalconRateLimiter:
             key_func=key_func,
             error_message=error_message,
             methods=methods,
+            per_method=per_method,
         )
 
         def decorator(target: Any) -> Any:
