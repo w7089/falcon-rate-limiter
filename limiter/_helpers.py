@@ -22,6 +22,7 @@ class RateLimitDefinition:
         key_func: Function that extracts the client identifier from a request.
         rejection_message: Message returned in HTTP 429 responses.
         methods: Optional HTTP method filter. ``None`` means all methods.
+        per_method: Whether to include the request method in the rate-limit key.
     """
 
     requests: int
@@ -29,6 +30,7 @@ class RateLimitDefinition:
     key_func: Callable[[falcon.Request], str]
     rejection_message: str
     methods: frozenset[str] | None = None
+    per_method: bool = False
 
 
 def _get_request_response(
@@ -121,6 +123,7 @@ def _build_rate_limit_key(
     req: falcon.Request,
     scope: str,
     client_key_func: Callable[[falcon.Request], str],
+    per_method: bool = False,
 ) -> str:
     """Build the composite key used to track rate limit counters.
 
@@ -132,11 +135,14 @@ def _build_rate_limit_key(
         req: The incoming Falcon request.
         scope: Typically the responder's ``__qualname__`` (e.g., ``Resource.on_get``).
         client_key_func: Function that extracts a client identifier from ``req``.
+        per_method: Whether to include the uppercase request method in the key.
 
     Returns:
         A string key suitable for the ``limits`` storage backend.
     """
     client_id = client_key_func(req) or "global"
+    if per_method:
+        return f"{scope}:{req.method.upper()}:{client_id}"
     return f"{scope}:{client_id}"
 
 
@@ -208,7 +214,12 @@ def _check_rate_limit(
         and req.method.upper() not in resolved_limit.methods
     ):
         return
-    key = _build_rate_limit_key(req, scope, resolved_limit.key_func)
+    key = _build_rate_limit_key(
+        req,
+        scope,
+        resolved_limit.key_func,
+        per_method=resolved_limit.per_method,
+    )
     allowed = limiter.hit(resolved_limit.rate_limit_item, key)
     stats: WindowStats | None = None
     if headers_enabled or not allowed:
@@ -253,7 +264,12 @@ async def _check_rate_limit_async(
         and req.method.upper() not in resolved_limit.methods
     ):
         return
-    key = _build_rate_limit_key(req, scope, resolved_limit.key_func)
+    key = _build_rate_limit_key(
+        req,
+        scope,
+        resolved_limit.key_func,
+        per_method=resolved_limit.per_method,
+    )
 
     def _hit_and_stats() -> tuple[bool, WindowStats | None]:
         """Run blocking limiter calls in a thread pool."""
