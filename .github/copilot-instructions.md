@@ -25,7 +25,7 @@ This repository implements a rate limiter for the Falcon web framework, wrapping
 - Recent lesson: do not expose internal scheduling details in public method names (for example, `...if_due`). Prefer names that describe the caller's intent, and if the call flow still feels awkward, redesign the API so the call site reads naturally.
 - Recent lesson: avoid mutating a generic “active” object when separate named state is clearer. For fallback/recovery flows, prefer explicit primary/fallback objects plus a clear selector over hidden state changes.
 - Recent lesson: extract repeated user-visible strings and operational log messages into a shared constants module, and use those constants in tests instead of duplicating raw strings.
-- Recent lesson: keep subsystem-focused tests in dedicated files, and use parametrized tests for repeated validation cases when that improves readability without fighting the type system.
+- Recent lesson: keep subsystem-focused tests in dedicated files, and use parametrized tests for repeated validation cases when that improves readability without fighting the type system. When sync/async or middleware/decorator tests share the same setup and only the predicate, request headers, or expected response changes, factor the repeated app/resource setup into one focused test shape and parameterize the cases instead of adding near-duplicate tests.
 - End implementation by reviewing the code, validating with the repository checks, and summarizing the educational takeaway from the change.
 
 ## Build, Test, and Lint Commands
