@@ -26,14 +26,17 @@ This repository implements a rate limiter for the Falcon web framework, wrapping
 - Recent lesson: avoid mutating a generic “active” object when separate named state is clearer. For fallback/recovery flows, prefer explicit primary/fallback objects plus a clear selector over hidden state changes.
 - Recent lesson: extract repeated user-visible strings and operational log messages into a shared constants module, and use those constants in tests instead of duplicating raw strings.
 - Recent lesson: keep subsystem-focused tests in dedicated files, and use parametrized tests for repeated validation cases when that improves readability without fighting the type system. When sync/async or middleware/decorator tests share the same setup and only the predicate, request headers, or expected response changes, factor the repeated app/resource setup into one focused test shape and parameterize the cases instead of adding near-duplicate tests.
+- Recent lesson: use Makefile targets as the single command interface for local work, CI, and pre-commit hooks. Do not duplicate raw `uv run ...` commands in automation when an equivalent `make` target exists.
+- Recent lesson: do not add casts or `Any` to tests only to satisfy third-party framework typing noise. Keep behavior tests readable, type-check the package code via `make type-check`, and reserve casts in tests for deliberate negative API checks where static typing must be bypassed to assert runtime errors.
 - End implementation by reviewing the code, validating with the repository checks, and summarizing the educational takeaway from the change.
 
 ## Build, Test, and Lint Commands
 
-- **Run all tests:** `pytest`
-- **Run a single test file:** `pytest tests/test_limiter.py`
-- **Run a specific test case:** `pytest tests/test_limiter.py::test_rate_limit_allows_requests`
-- **Install dependencies:** `uv sync` (project uses `uv` for dependency management)
+- **Run all checks:** `make check`
+- **Run all tests:** `make test`
+- **Run lint:** `make lint`
+- **Run type checks:** `make type-check`
+- **Install dependencies:** `make install`
 
 ## High-Level Architecture
 
