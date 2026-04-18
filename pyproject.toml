@@ -64,7 +64,7 @@ dev = [
     "types-redis>=4.6.0.20241004",
 ]
 e2e = [
-    "gunicorn>=21.0.0",
+    "gunicorn>=25.3.0",
 ]
 
 [tool.pytest.ini_options]
