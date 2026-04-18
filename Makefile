@@ -15,7 +15,7 @@ format:
 	uv run ruff format .
 
 type-check:
-	uv run mypy .
+	uv run mypy limiter
 
 test:
 	uv run pytest

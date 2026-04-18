@@ -7,6 +7,7 @@ import pytest
 from dateutil.relativedelta import relativedelta
 from falcon.testing import TestClient
 
+from limiter import FalconRateLimitMiddleware
 from limiter.core import FalconRateLimiter
 
 HTTP_200 = HTTPStatus.OK
@@ -110,6 +111,98 @@ def test_async_exempt_when_behavior(
     assert client.get("/async-conditional-exemption").status_code == HTTP_200
 
     resp = client.get("/async-conditional-exemption", headers=INTERNAL_HEADERS)
+
+    assert resp.status_code == expected_status
+    assert key_func_calls == expected_key_func_calls
+
+
+@pytest.mark.parametrize(
+    ("exempt_when", "expected_status", "expected_key_func_calls"),
+    [
+        pytest.param(_is_internal_request, HTTP_200, 1, id="exempt"),
+        pytest.param(_is_never_exempt, HTTP_429, 2, id="not-exempt"),
+        pytest.param(_broken_exemption, HTTP_500, 1, id="exception"),
+    ],
+)
+def test_sync_middleware_exempt_when_behavior(
+    exempt_when: Callable[[falcon.Request], bool],
+    expected_status: HTTPStatus,
+    expected_key_func_calls: int,
+) -> None:
+    key_func_calls = 0
+
+    def key_func(req: falcon.Request) -> str:
+        nonlocal key_func_calls
+        key_func_calls += 1
+        return "client"
+
+    limiter = FalconRateLimiter(key_func=key_func)
+    middleware = FalconRateLimitMiddleware(
+        limiter,
+        requests=1,
+        per=relativedelta(seconds=1),
+        exempt_when=exempt_when,
+    )
+
+    class ConditionalExemptionResource:
+        def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.text = "ok"
+
+    app = falcon.App(middleware=[middleware])
+    app.add_route("/middleware-conditional-exemption", ConditionalExemptionResource())
+    client = TestClient(app)
+
+    assert client.get("/middleware-conditional-exemption").status_code == HTTP_200
+
+    resp = client.get("/middleware-conditional-exemption", headers=INTERNAL_HEADERS)
+
+    assert resp.status_code == expected_status
+    assert key_func_calls == expected_key_func_calls
+
+
+@pytest.mark.parametrize(
+    ("exempt_when", "expected_status", "expected_key_func_calls"),
+    [
+        pytest.param(_is_internal_request, HTTP_200, 1, id="exempt"),
+        pytest.param(_is_never_exempt, HTTP_429, 2, id="not-exempt"),
+        pytest.param(_broken_exemption, HTTP_500, 1, id="exception"),
+    ],
+)
+def test_async_middleware_exempt_when_behavior(
+    exempt_when: Callable[[falcon.Request], bool],
+    expected_status: HTTPStatus,
+    expected_key_func_calls: int,
+) -> None:
+    key_func_calls = 0
+
+    def key_func(req: falcon.Request) -> str:
+        nonlocal key_func_calls
+        key_func_calls += 1
+        return "client"
+
+    limiter = FalconRateLimiter(key_func=key_func)
+    middleware = FalconRateLimitMiddleware(
+        limiter,
+        requests=1,
+        per=relativedelta(seconds=1),
+        exempt_when=exempt_when,
+    )
+
+    class AsyncConditionalExemptionResource:
+        async def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.text = "ok"
+
+    app = falcon.asgi.App(middleware=[middleware])
+    app.add_route(
+        "/async-middleware-conditional-exemption", AsyncConditionalExemptionResource()
+    )
+    client = TestClient(app)
+
+    assert client.get("/async-middleware-conditional-exemption").status_code == HTTP_200
+
+    resp = client.get(
+        "/async-middleware-conditional-exemption", headers=INTERNAL_HEADERS
+    )
 
     assert resp.status_code == expected_status
     assert key_func_calls == expected_key_func_calls
