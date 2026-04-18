@@ -1,7 +1,6 @@
 import falcon
 import falcon.asgi
 from dateutil.relativedelta import relativedelta
-from typing import Any, cast
 
 from limiter import FalconRateLimitMiddleware, FalconRateLimiter
 
@@ -211,7 +210,7 @@ def create_async_middleware_app(
             resp.status = falcon.HTTP_200
             resp.text = "ASYNC EXEMPT DEFAULT OK"
 
-    app = falcon.asgi.App(middleware=cast(list[Any], [middleware]))
+    app = falcon.asgi.App(middleware=[middleware])
     app.add_route("/async-middleware-test", AsyncMiddlewareProtectedResource())
     app.add_route("/async-middleware-decorated", AsyncDecoratedResource())
     app.add_route("/async-middleware-default", AsyncDefaultLimitedResource())
