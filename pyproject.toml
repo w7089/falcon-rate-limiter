@@ -81,3 +81,4 @@ warn_unused_configs = true
 disallow_untyped_defs = true
 check_untyped_defs = true
 ignore_missing_imports = true
+exclude = ["tests"]

@@ -25,6 +25,7 @@ class FalconRateLimitMiddleware:
         key_func: Optional override for client key extraction.
         error_message: Custom message for HTTP 429 responses.
         per_method: Whether to include the request method in the rate-limit key.
+        exempt_when: Optional predicate that skips this limit when it returns ``True``.
 
     Raises:
         ValueError: When only one of ``requests`` or ``per`` is provided.
@@ -39,6 +40,7 @@ class FalconRateLimitMiddleware:
         key_func: Callable[[falcon.Request], str] | None = None,
         error_message: str | None = None,
         per_method: bool = False,
+        exempt_when: Callable[[falcon.Request], bool] | None = None,
     ) -> None:
         self._limiter = limiter
         if requests is None and per is None:
@@ -50,6 +52,7 @@ class FalconRateLimitMiddleware:
                 key_func=key_func,
                 error_message=error_message,
                 per_method=per_method,
+                exempt_when=exempt_when,
             )
         else:
             raise ValueError("requests and per must be provided together")

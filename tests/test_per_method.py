@@ -3,7 +3,6 @@ import falcon.asgi
 from dateutil.relativedelta import relativedelta
 from falcon.testing import TestClient
 from limits.storage import MemoryStorage
-from typing import Any, cast
 
 from limiter import FalconRateLimitMiddleware
 from limiter.core import FalconRateLimiter
@@ -170,7 +169,7 @@ def test_async_middleware_per_method_counts_methods_separately() -> None:
         async def on_post(self, req: falcon.Request, resp: falcon.Response) -> None:
             resp.text = "post ok"
 
-    app = falcon.asgi.App(middleware=cast(list[Any], [middleware]))
+    app = falcon.asgi.App(middleware=[middleware])
     app.add_route(
         "/async-middleware-per-method-counts", AsyncPerMethodMiddlewareResource()
     )

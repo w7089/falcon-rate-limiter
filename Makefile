@@ -1,21 +1,27 @@
-.PHONY: lint format type-check test all install check e2e-up e2e-down test-e2e e2e version release release-patch release-minor release-major release-tag
+.PHONY: lint format type-check test all install install-frozen install-e2e-frozen check build check-dist dist e2e-up e2e-down test-e2e e2e version release release-patch release-minor release-major release-tag
 
-E2E_COMPOSE := docker-compose -f tests/e2e/docker-compose.yml
+E2E_COMPOSE := docker compose -f tests/e2e/docker-compose.yml
 
 install:
-	uv sync
+	uv sync --dev
+
+install-frozen:
+	uv sync --dev --frozen
+
+install-e2e-frozen:
+	uv sync --dev --group e2e --frozen
 
 lint:
 	uv run ruff check .
 
 lint-auto-fix:
-    uv run ruff check --fix .:
+	uv run ruff check --fix .
 
 format:
 	uv run ruff format .
 
 type-check:
-	uv run mypy .
+	uv run mypy limiter
 
 test:
 	uv run pytest
@@ -23,6 +29,14 @@ test:
 check: lint type-check test
 
 all: format check
+
+build:
+	uv run --with build python -m build
+
+check-dist:
+	uv run --with twine twine check dist/*
+
+dist: build check-dist
 
 version:
 	@uv run python scripts/release.py current-version

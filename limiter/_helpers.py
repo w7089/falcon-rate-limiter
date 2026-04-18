@@ -31,6 +31,7 @@ class RateLimitDefinition:
     rejection_message: str
     methods: frozenset[str] | None = None
     per_method: bool = False
+    exempt_when: Callable[[falcon.Request], bool] | None = None
 
 
 def _get_request_response(
@@ -184,6 +185,32 @@ def _retry_after_seconds(stats: WindowStats | None) -> int | None:
     return max(0, int(stats.reset_time - time.time()))
 
 
+def _should_skip_limit(
+    req: falcon.Request,
+    resolved_limit: RateLimitDefinition,
+) -> bool:
+    """Return whether this limit should be skipped before key resolution.
+
+    Method filtering runs before conditional exemptions so requests outside an
+    explicit method filter do not call user-provided exemption predicates.
+
+    Args:
+        req: The incoming Falcon request.
+        resolved_limit: The limit definition to evaluate.
+
+    Returns:
+        ``True`` when this limit should not build a key or hit storage.
+    """
+    if (
+        resolved_limit.methods is not None
+        and req.method.upper() not in resolved_limit.methods
+    ):
+        return True
+    return bool(
+        resolved_limit.exempt_when is not None and resolved_limit.exempt_when(req)
+    )
+
+
 def _check_rate_limit(
     limiter: FixedWindowRateLimiter,
     resolved_limit: RateLimitDefinition,
@@ -208,11 +235,7 @@ def _check_rate_limit(
     Raises:
         falcon.HTTPTooManyRequests: When the rate limit is exceeded.
     """
-    # Skip requests outside an explicit method filter.
-    if (
-        resolved_limit.methods is not None
-        and req.method.upper() not in resolved_limit.methods
-    ):
+    if _should_skip_limit(req, resolved_limit):
         return
     key = _build_rate_limit_key(
         req,
@@ -258,11 +281,7 @@ async def _check_rate_limit_async(
     Raises:
         falcon.HTTPTooManyRequests: When the rate limit is exceeded.
     """
-    # Skip requests outside an explicit method filter.
-    if (
-        resolved_limit.methods is not None
-        and req.method.upper() not in resolved_limit.methods
-    ):
+    if _should_skip_limit(req, resolved_limit):
         return
     key = _build_rate_limit_key(
         req,

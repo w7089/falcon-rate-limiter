@@ -170,6 +170,56 @@ With the default responder scope, methods such as `on_get` and `on_post` often
 already have separate counters. `per_method=True` is most useful when a shared
 or manually chosen scope would otherwise group multiple HTTP methods together.
 
+## Conditional exemptions
+
+Use `exempt_when` when a specific limit should be skipped for selected requests.
+The predicate receives the Falcon request and should return `True` when the
+limit should not run.
+
+```python
+class InternalStatusResource:
+    @limiter.rate_limit(
+        requests=10,
+        per=relativedelta(minutes=1),
+        exempt_when=lambda req: req.get_header("X-Internal") == "true",
+    )
+    def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+        resp.text = "ok"
+```
+
+Requests skipped by `exempt_when` do not resolve the client key, do not consume
+quota, and do not produce a `429` from that limit.
+
+The predicate is synchronous and should be fast. Use request-local information
+such as headers, path, method, remote address, or values already attached by
+earlier middleware. Do not perform database, cache, HTTP, filesystem, or sleep
+operations inside `exempt_when`.
+
+`exempt_when` is also supported by explicit middleware limits:
+
+```python
+middleware = FalconRateLimitMiddleware(
+    limiter,
+    requests=100,
+    per=relativedelta(minutes=1),
+    exempt_when=lambda req: req.get_header("X-Internal") == "true",
+)
+```
+
+Default limits configured on `FalconRateLimiter` do not currently accept an
+`exempt_when` predicate:
+
+```python
+limiter = FalconRateLimiter(
+    default_requests=100,
+    default_per=relativedelta(minutes=1),
+)
+middleware = FalconRateLimitMiddleware(limiter)
+```
+
+When conditional middleware exemptions are needed, configure the middleware
+limit explicitly with `requests`, `per`, and `exempt_when`.
+
 ## Response headers
 
 When `headers_enabled=True` (the default), successful and rejected responses
