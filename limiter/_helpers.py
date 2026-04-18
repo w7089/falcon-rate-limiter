@@ -31,6 +31,7 @@ class RateLimitDefinition:
     rejection_message: str
     methods: frozenset[str] | None = None
     per_method: bool = False
+    exempt_when: Callable[[falcon.Request], bool] | None = None
 
 
 def _get_request_response(
@@ -214,6 +215,8 @@ def _check_rate_limit(
         and req.method.upper() not in resolved_limit.methods
     ):
         return
+    if resolved_limit.exempt_when is not None and resolved_limit.exempt_when(req):
+        return
     key = _build_rate_limit_key(
         req,
         scope,
@@ -255,6 +258,7 @@ async def _check_rate_limit_async(
         req: The incoming Falcon request.
         resp: The Falcon response (headers may be modified).
 
+
     Raises:
         falcon.HTTPTooManyRequests: When the rate limit is exceeded.
     """
@@ -263,6 +267,8 @@ async def _check_rate_limit_async(
         resolved_limit.methods is not None
         and req.method.upper() not in resolved_limit.methods
     ):
+        return
+    if resolved_limit.exempt_when is not None and resolved_limit.exempt_when(req):
         return
     key = _build_rate_limit_key(
         req,
