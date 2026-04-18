@@ -63,12 +63,6 @@ jobs:
       - name: Check distribution metadata
         run: make check-dist
 
-      - name: Upload distribution artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: python-dist
-          path: dist/
-
   e2e:
     name: End-to-end tests
     runs-on: ubuntu-latest
