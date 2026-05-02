@@ -222,7 +222,8 @@ def _resolve_limit_cost(
     if callable(limit_cost):
         resolved_cost = limit_cost(req)
     else:
-        return limit_cost
+        resolved_cost = limit_cost
+    # validate limit cost
     if (
         type(resolved_cost) is bool
         or type(resolved_cost) is not int
@@ -311,10 +312,11 @@ async def _check_rate_limit_async(
         resolved_limit.key_func,
         per_method=resolved_limit.per_method,
     )
+    resolved_cost = _resolve_limit_cost(req, resolved_limit)
 
     def _hit_and_stats() -> tuple[bool, WindowStats | None]:
         """Run blocking limiter calls in a thread pool."""
-        allowed = limiter.hit(resolved_limit.rate_limit_item, key)
+        allowed = limiter.hit(resolved_limit.rate_limit_item, key, cost=resolved_cost)
         stats = (
             limiter.get_window_stats(resolved_limit.rate_limit_item, key)
             if headers_enabled or not allowed
