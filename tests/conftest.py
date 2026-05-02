@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 from falcon.asgi import App as ASGIApp
 from falcon import App
@@ -45,3 +47,14 @@ def middleware_client() -> TestClient:
 @pytest.fixture
 def async_middleware_client() -> TestClient:
     return TestClient(create_async_middleware_app())
+
+
+@pytest.fixture
+def event_loop() -> asyncio.AbstractEventLoop:
+    loop = asyncio.new_event_loop()
+    try:
+        asyncio.set_event_loop(loop)
+        yield loop
+    finally:
+        loop.close()
+        asyncio.set_event_loop(None)

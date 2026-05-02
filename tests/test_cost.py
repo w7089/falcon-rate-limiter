@@ -163,6 +163,7 @@ def test_async_method_callable_cost_consumes_dynamic_quota_units() -> None:
 )
 def test_async_method_invalid_callable_cost_raises_value_error(
     cost: Callable[[falcon.Request], int],
+    event_loop: asyncio.AbstractEventLoop,
 ) -> None:
     limiter = FalconRateLimiter(headers_enabled=False)
 
@@ -179,7 +180,7 @@ def test_async_method_invalid_callable_cost_raises_value_error(
     resp = falcon.Response()
 
     with pytest.raises(ValueError, match=INVALID_LIMIT_COST_ERROR_MESSAGE):
-        asyncio.run(
+        event_loop.run_until_complete(
             limiter.enforce_limit_async(
                 limit,
                 WeightedResource.on_post.__qualname__,
@@ -344,6 +345,7 @@ def test_async_middleware_callable_cost_consumes_dynamic_quota_units() -> None:
 )
 def test_async_middleware_invalid_callable_cost_raises_value_error(
     cost: Callable[[falcon.Request], int],
+    event_loop: asyncio.AbstractEventLoop,
 ) -> None:
     limiter = FalconRateLimiter(headers_enabled=False)
     middleware = FalconRateLimitMiddleware(
@@ -366,6 +368,6 @@ def test_async_middleware_invalid_callable_cost_raises_value_error(
     resp = falcon.Response()
 
     with pytest.raises(ValueError, match=INVALID_LIMIT_COST_ERROR_MESSAGE):
-        asyncio.run(
+        event_loop.run_until_complete(
             middleware.process_resource_async(req, resp, WeightedResource(), {})
         )
