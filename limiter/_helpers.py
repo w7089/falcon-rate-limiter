@@ -8,6 +8,8 @@ from limits import RateLimitItem
 from limits.strategies import FixedWindowRateLimiter
 from limits.util import WindowStats
 
+from limiter.constants import INVALID_LIMIT_COST_ERROR_MESSAGE
+
 _RATE_LIMIT_DECORATED_ATTR = "__falcon_rate_limit_decorated__"
 _RATE_LIMIT_EXEMPT_ATTR = "__falcon_rate_limit_exempt__"
 
@@ -226,9 +228,7 @@ def _resolve_limit_cost(
         or type(resolved_cost) is not int
         or resolved_cost <= 0
     ):
-        raise ValueError(
-            "Invalid resolved limit cost value. It should be a positive integer."
-        )
+        raise ValueError(INVALID_LIMIT_COST_ERROR_MESSAGE)
     return resolved_cost
 
 

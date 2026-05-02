@@ -1,9 +1,14 @@
+from collections.abc import Callable
 from http import HTTPStatus
+from typing import cast
 
 import falcon
 from dateutil.relativedelta import relativedelta
+from falcon import testing
 from falcon.testing import TestClient
+import pytest
 
+from limiter.constants import INVALID_LIMIT_COST_ERROR_MESSAGE
 from limiter.core import FalconRateLimiter
 
 HTTP_200 = HTTPStatus.OK
@@ -29,3 +34,69 @@ def test_sync_method_static_cost_consumes_multiple_quota_units() -> None:
     assert client.post("/weighted").status_code == HTTP_200
     assert client.post("/weighted").status_code == HTTP_200
     assert client.post("/weighted").status_code == HTTP_429
+
+
+def test_sync_method_callable_cost_consumes_dynamic_quota_units() -> None:
+    limiter = FalconRateLimiter(headers_enabled=False)
+
+    class WeightedResource:
+        @limiter.rate_limit(
+            requests=5,
+            per=relativedelta(minutes=1),
+            cost=lambda req: int(req.get_header("X-Cost") or "1"),
+        )
+        def on_post(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.text = "created"
+
+    app = falcon.App()
+    app.add_route("/weighted-callable", WeightedResource())
+    client = TestClient(app)
+
+    assert (
+        client.post("/weighted-callable", headers={"X-Cost": "3"}).status_code
+        == HTTP_200
+    )
+    assert (
+        client.post("/weighted-callable", headers={"X-Cost": "3"}).status_code
+        == HTTP_429
+    )
+
+
+def _zero_cost(req: falcon.Request) -> int:
+    del req
+    return 0
+
+
+def _bool_cost(req: falcon.Request) -> bool:
+    del req
+    return True
+
+
+@pytest.mark.parametrize(
+    "cost",
+    [
+        _zero_cost,
+        _bool_cost,
+        cast(Callable[[falcon.Request], int], lambda req: 1.5),
+    ],
+    ids=["zero", "bool", "float"],
+)
+def test_sync_method_invalid_callable_cost_raises_value_error(
+    cost: Callable[[falcon.Request], int],
+) -> None:
+    limiter = FalconRateLimiter(headers_enabled=False)
+
+    class WeightedResource:
+        def on_post(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.text = "created"
+
+    limit = limiter.create_limit(
+        requests=5,
+        per=relativedelta(minutes=1),
+        cost=cost,
+    )
+    req = falcon.Request(testing.create_environ(path="/weighted-invalid-cost"))
+    resp = falcon.Response()
+
+    with pytest.raises(ValueError, match=INVALID_LIMIT_COST_ERROR_MESSAGE):
+        limiter.enforce_limit(limit, WeightedResource.on_post.__qualname__, req, resp)
