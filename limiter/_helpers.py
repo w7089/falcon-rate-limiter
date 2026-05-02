@@ -25,6 +25,7 @@ class RateLimitDefinition:
         rejection_message: Message returned in HTTP 429 responses.
         methods: Optional HTTP method filter. ``None`` means all methods.
         per_method: Whether to include the request method in the rate-limit key.
+        cost: the cost of the to be consumed request by rate limit.
     """
 
     requests: int

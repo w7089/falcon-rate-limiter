@@ -10,6 +10,7 @@ from falcon import testing
 from falcon.testing import TestClient
 import pytest
 
+from limiter import FalconRateLimitMiddleware
 from limiter.constants import INVALID_LIMIT_COST_ERROR_MESSAGE
 from limiter.core import FalconRateLimiter
 
@@ -185,4 +186,186 @@ def test_async_method_invalid_callable_cost_raises_value_error(
                 req,
                 resp,
             )
+        )
+
+
+def test_sync_middleware_static_cost_consumes_multiple_quota_units() -> None:
+    limiter = FalconRateLimiter(headers_enabled=False)
+    middleware = FalconRateLimitMiddleware(
+        limiter,
+        requests=5,
+        per=relativedelta(minutes=1),
+        cost=2,
+    )
+
+    class WeightedResource:
+        def on_post(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.text = "created"
+
+    app = falcon.App(middleware=[middleware])
+    app.add_route("/middleware-weighted", WeightedResource())
+    client = TestClient(app)
+
+    assert client.post("/middleware-weighted").status_code == HTTP_200
+    assert client.post("/middleware-weighted").status_code == HTTP_200
+    assert client.post("/middleware-weighted").status_code == HTTP_429
+
+
+def test_sync_middleware_callable_cost_consumes_dynamic_quota_units() -> None:
+    limiter = FalconRateLimiter(headers_enabled=False)
+    middleware = FalconRateLimitMiddleware(
+        limiter,
+        requests=5,
+        per=relativedelta(minutes=1),
+        cost=lambda req: int(req.get_header("X-Cost") or "1"),
+    )
+
+    class WeightedResource:
+        def on_post(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.text = "created"
+
+    app = falcon.App(middleware=[middleware])
+    app.add_route("/middleware-weighted-callable", WeightedResource())
+    client = TestClient(app)
+
+    assert (
+        client.post(
+            "/middleware-weighted-callable", headers={"X-Cost": "3"}
+        ).status_code
+        == HTTP_200
+    )
+    assert (
+        client.post(
+            "/middleware-weighted-callable", headers={"X-Cost": "3"}
+        ).status_code
+        == HTTP_429
+    )
+
+
+@pytest.mark.parametrize(
+    "cost",
+    [
+        _zero_cost,
+        _bool_cost,
+        cast(Callable[[falcon.Request], int], lambda req: 1.5),
+    ],
+    ids=["zero", "bool", "float"],
+)
+def test_sync_middleware_invalid_callable_cost_raises_value_error(
+    cost: Callable[[falcon.Request], int],
+) -> None:
+    limiter = FalconRateLimiter(headers_enabled=False)
+    middleware = FalconRateLimitMiddleware(
+        limiter,
+        requests=5,
+        per=relativedelta(minutes=1),
+        cost=cost,
+    )
+
+    class WeightedResource:
+        def on_post(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.text = "created"
+
+    req = falcon.Request(
+        testing.create_environ(
+            path="/middleware-weighted-invalid-cost",
+            method="POST",
+        )
+    )
+    resp = falcon.Response()
+
+    with pytest.raises(ValueError, match=INVALID_LIMIT_COST_ERROR_MESSAGE):
+        middleware.process_resource(req, resp, WeightedResource(), {})
+
+
+def test_async_middleware_static_cost_consumes_multiple_quota_units() -> None:
+    limiter = FalconRateLimiter(headers_enabled=False)
+    middleware = FalconRateLimitMiddleware(
+        limiter,
+        requests=5,
+        per=relativedelta(minutes=1),
+        cost=2,
+    )
+
+    class WeightedResource:
+        async def on_post(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.text = "created"
+
+    app = falcon.asgi.App(middleware=[middleware])
+    app.add_route("/async-middleware-weighted", WeightedResource())
+    client = TestClient(app)
+
+    assert client.post("/async-middleware-weighted").status_code == HTTP_200
+    assert client.post("/async-middleware-weighted").status_code == HTTP_200
+    assert client.post("/async-middleware-weighted").status_code == HTTP_429
+
+
+def test_async_middleware_callable_cost_consumes_dynamic_quota_units() -> None:
+    limiter = FalconRateLimiter(headers_enabled=False)
+    middleware = FalconRateLimitMiddleware(
+        limiter,
+        requests=5,
+        per=relativedelta(minutes=1),
+        cost=lambda req: int(req.get_header("X-Cost") or "1"),
+    )
+
+    class WeightedResource:
+        async def on_post(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.text = "created"
+
+    app = falcon.asgi.App(middleware=[middleware])
+    app.add_route("/async-middleware-weighted-callable", WeightedResource())
+    client = TestClient(app)
+
+    assert (
+        client.post(
+            "/async-middleware-weighted-callable",
+            headers={"X-Cost": "3"},
+        ).status_code
+        == HTTP_200
+    )
+    assert (
+        client.post(
+            "/async-middleware-weighted-callable",
+            headers={"X-Cost": "3"},
+        ).status_code
+        == HTTP_429
+    )
+
+
+@pytest.mark.parametrize(
+    "cost",
+    [
+        _zero_cost,
+        _bool_cost,
+        cast(Callable[[falcon.Request], int], lambda req: 1.5),
+    ],
+    ids=["zero", "bool", "float"],
+)
+def test_async_middleware_invalid_callable_cost_raises_value_error(
+    cost: Callable[[falcon.Request], int],
+) -> None:
+    limiter = FalconRateLimiter(headers_enabled=False)
+    middleware = FalconRateLimitMiddleware(
+        limiter,
+        requests=5,
+        per=relativedelta(minutes=1),
+        cost=cost,
+    )
+
+    class WeightedResource:
+        async def on_post(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.text = "created"
+
+    req = falcon.Request(
+        testing.create_environ(
+            path="/async-middleware-weighted-invalid-cost",
+            method="POST",
+        )
+    )
+    resp = falcon.Response()
+
+    with pytest.raises(ValueError, match=INVALID_LIMIT_COST_ERROR_MESSAGE):
+        asyncio.run(
+            middleware.process_resource_async(req, resp, WeightedResource(), {})
         )
