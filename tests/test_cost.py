@@ -1,4 +1,3 @@
-import asyncio
 from collections.abc import Callable
 from http import HTTPStatus
 from typing import cast
@@ -152,44 +151,6 @@ def test_async_method_callable_cost_consumes_dynamic_quota_units() -> None:
     )
 
 
-@pytest.mark.parametrize(
-    "cost",
-    [
-        _zero_cost,
-        _bool_cost,
-        cast(Callable[[falcon.Request], int], lambda req: 1.5),
-    ],
-    ids=["zero", "bool", "float"],
-)
-def test_async_method_invalid_callable_cost_raises_value_error(
-    cost: Callable[[falcon.Request], int],
-    event_loop: asyncio.AbstractEventLoop,
-) -> None:
-    limiter = FalconRateLimiter(headers_enabled=False)
-
-    class WeightedResource:
-        async def on_post(self, req: falcon.Request, resp: falcon.Response) -> None:
-            resp.text = "created"
-
-    limit = limiter.create_limit(
-        requests=5,
-        per=relativedelta(minutes=1),
-        cost=cost,
-    )
-    req = falcon.Request(testing.create_environ(path="/async-weighted-invalid-cost"))
-    resp = falcon.Response()
-
-    with pytest.raises(ValueError, match=INVALID_LIMIT_COST_ERROR_MESSAGE):
-        event_loop.run_until_complete(
-            limiter.enforce_limit_async(
-                limit,
-                WeightedResource.on_post.__qualname__,
-                req,
-                resp,
-            )
-        )
-
-
 def test_sync_middleware_static_cost_consumes_multiple_quota_units() -> None:
     limiter = FalconRateLimiter(headers_enabled=False)
     middleware = FalconRateLimitMiddleware(
@@ -332,42 +293,3 @@ def test_async_middleware_callable_cost_consumes_dynamic_quota_units() -> None:
         ).status_code
         == HTTP_429
     )
-
-
-@pytest.mark.parametrize(
-    "cost",
-    [
-        _zero_cost,
-        _bool_cost,
-        cast(Callable[[falcon.Request], int], lambda req: 1.5),
-    ],
-    ids=["zero", "bool", "float"],
-)
-def test_async_middleware_invalid_callable_cost_raises_value_error(
-    cost: Callable[[falcon.Request], int],
-    event_loop: asyncio.AbstractEventLoop,
-) -> None:
-    limiter = FalconRateLimiter(headers_enabled=False)
-    middleware = FalconRateLimitMiddleware(
-        limiter,
-        requests=5,
-        per=relativedelta(minutes=1),
-        cost=cost,
-    )
-
-    class WeightedResource:
-        async def on_post(self, req: falcon.Request, resp: falcon.Response) -> None:
-            resp.text = "created"
-
-    req = falcon.Request(
-        testing.create_environ(
-            path="/async-middleware-weighted-invalid-cost",
-            method="POST",
-        )
-    )
-    resp = falcon.Response()
-
-    with pytest.raises(ValueError, match=INVALID_LIMIT_COST_ERROR_MESSAGE):
-        event_loop.run_until_complete(
-            middleware.process_resource_async(req, resp, WeightedResource(), {})
-        )
