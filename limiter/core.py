@@ -155,8 +155,8 @@ class FalconRateLimiter:
             per_method: Whether to include the request method in the
                 rate-limit key.
             exempt_when: Optional predicate that skips this limit when it returns ``True``.
-            cost: the cost of the to be consumed request by rate limit.
-
+            cost: Quota units consumed by the request, or a callable that
+                returns the quota units for the current request.
 
         Returns:
             A ``RateLimitDefinition`` that can be passed to ``enforce_limit``.
@@ -384,7 +384,8 @@ class FalconRateLimiter:
             per_method: Whether to include the request method in the
                 rate-limit key.
             exempt_when: Optional predicate that skips this limit when it returns ``True``.
-            cost: the cost of the to be consumed request by rate limit.
+            cost: Quota units consumed by the request, or a callable that
+                returns the quota units for the current request.
 
         Returns:
             A decorator that wraps the target with rate limit enforcement.

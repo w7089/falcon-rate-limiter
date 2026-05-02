@@ -26,6 +26,8 @@ class FalconRateLimitMiddleware:
         error_message: Custom message for HTTP 429 responses.
         per_method: Whether to include the request method in the rate-limit key.
         exempt_when: Optional predicate that skips this limit when it returns ``True``.
+        cost: Quota units consumed by the request, or a callable that returns
+            the quota units for the current request.
 
     Raises:
         ValueError: When only one of ``requests`` or ``per`` is provided.
