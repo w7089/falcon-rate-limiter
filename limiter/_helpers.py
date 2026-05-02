@@ -8,6 +8,8 @@ from limits import RateLimitItem
 from limits.strategies import FixedWindowRateLimiter
 from limits.util import WindowStats
 
+from limiter.constants import INVALID_LIMIT_COST_ERROR_MESSAGE
+
 _RATE_LIMIT_DECORATED_ATTR = "__falcon_rate_limit_decorated__"
 _RATE_LIMIT_EXEMPT_ATTR = "__falcon_rate_limit_exempt__"
 
@@ -23,6 +25,8 @@ class RateLimitDefinition:
         rejection_message: Message returned in HTTP 429 responses.
         methods: Optional HTTP method filter. ``None`` means all methods.
         per_method: Whether to include the request method in the rate-limit key.
+        cost: Quota units consumed by the request, or a callable that returns
+            the quota units for the current request.
     """
 
     requests: int
@@ -32,6 +36,7 @@ class RateLimitDefinition:
     methods: frozenset[str] | None = None
     per_method: bool = False
     exempt_when: Callable[[falcon.Request], bool] | None = None
+    cost: int | Callable[[falcon.Request], int] = 1
 
 
 def _get_request_response(
@@ -211,6 +216,25 @@ def _should_skip_limit(
     )
 
 
+def _resolve_limit_cost(
+    req: falcon.Request,
+    limit: RateLimitDefinition,
+) -> int:
+    limit_cost: int | Callable[[falcon.Request], int] = limit.cost
+    if callable(limit_cost):
+        resolved_cost = limit_cost(req)
+    else:
+        resolved_cost = limit_cost
+    # validate limit cost
+    if (
+        type(resolved_cost) is bool
+        or type(resolved_cost) is not int
+        or resolved_cost <= 0
+    ):
+        raise ValueError(INVALID_LIMIT_COST_ERROR_MESSAGE)
+    return resolved_cost
+
+
 def _check_rate_limit(
     limiter: FixedWindowRateLimiter,
     resolved_limit: RateLimitDefinition,
@@ -243,7 +267,8 @@ def _check_rate_limit(
         resolved_limit.key_func,
         per_method=resolved_limit.per_method,
     )
-    allowed = limiter.hit(resolved_limit.rate_limit_item, key)
+    resolved_cost = _resolve_limit_cost(req, resolved_limit)
+    allowed = limiter.hit(resolved_limit.rate_limit_item, key, cost=resolved_cost)
     stats: WindowStats | None = None
     if headers_enabled or not allowed:
         stats = limiter.get_window_stats(resolved_limit.rate_limit_item, key)
@@ -289,10 +314,11 @@ async def _check_rate_limit_async(
         resolved_limit.key_func,
         per_method=resolved_limit.per_method,
     )
+    resolved_cost = _resolve_limit_cost(req, resolved_limit)
 
     def _hit_and_stats() -> tuple[bool, WindowStats | None]:
         """Run blocking limiter calls in a thread pool."""
-        allowed = limiter.hit(resolved_limit.rate_limit_item, key)
+        allowed = limiter.hit(resolved_limit.rate_limit_item, key, cost=resolved_cost)
         stats = (
             limiter.get_window_stats(resolved_limit.rate_limit_item, key)
             if headers_enabled or not allowed

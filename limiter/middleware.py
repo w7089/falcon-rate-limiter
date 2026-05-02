@@ -26,6 +26,8 @@ class FalconRateLimitMiddleware:
         error_message: Custom message for HTTP 429 responses.
         per_method: Whether to include the request method in the rate-limit key.
         exempt_when: Optional predicate that skips this limit when it returns ``True``.
+        cost: Quota units consumed by the request, or a callable that returns
+            the quota units for the current request.
 
     Raises:
         ValueError: When only one of ``requests`` or ``per`` is provided.
@@ -41,6 +43,7 @@ class FalconRateLimitMiddleware:
         error_message: str | None = None,
         per_method: bool = False,
         exempt_when: Callable[[falcon.Request], bool] | None = None,
+        cost: int | Callable[[falcon.Request], int] = 1,
     ) -> None:
         self._limiter = limiter
         if requests is None and per is None:
@@ -53,6 +56,7 @@ class FalconRateLimitMiddleware:
                 error_message=error_message,
                 per_method=per_method,
                 exempt_when=exempt_when,
+                cost=cost,
             )
         else:
             raise ValueError("requests and per must be provided together")

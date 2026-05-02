@@ -2,6 +2,9 @@
 
 DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE = "Rate limit exceeded"
 EMPTY_METHODS_ERROR_MESSAGE = "methods must contain at least one HTTP method"
+INVALID_LIMIT_COST_ERROR_MESSAGE = (
+    "Invalid resolved limit cost value. It should be a positive integer."
+)
 
 PRIMARY_STORAGE_UNAVAILABLE_MESSAGE = (
     "Primary storage is unavailable during initialization"
