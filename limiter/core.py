@@ -141,6 +141,7 @@ class FalconRateLimiter:
         methods: Iterable[str] | None = None,
         per_method: bool = False,
         exempt_when: Callable[[falcon.Request], bool] | None = None,
+        cost: int | Callable[[falcon.Request], int] = 1,
     ) -> RateLimitDefinition:
         """Create a reusable rate limit definition.
 
@@ -154,6 +155,8 @@ class FalconRateLimiter:
             per_method: Whether to include the request method in the
                 rate-limit key.
             exempt_when: Optional predicate that skips this limit when it returns ``True``.
+            cost: the cost of the to be consumed request by rate limit.
+
 
         Returns:
             A ``RateLimitDefinition`` that can be passed to ``enforce_limit``.
@@ -167,6 +170,7 @@ class FalconRateLimiter:
             methods=normalized_methods,
             per_method=per_method,
             exempt_when=exempt_when,
+            cost=cost,
         )
 
     def enforce_limit(
@@ -362,6 +366,7 @@ class FalconRateLimiter:
         methods: Iterable[str] | None = None,
         per_method: bool = False,
         exempt_when: Callable[[falcon.Request], bool] | None = None,
+        cost: int | Callable[[falcon.Request], int] = 1,
     ) -> Callable[[Any], Any]:
         """Decorator to apply a rate limit to a responder or resource class.
 
@@ -379,6 +384,7 @@ class FalconRateLimiter:
             per_method: Whether to include the request method in the
                 rate-limit key.
             exempt_when: Optional predicate that skips this limit when it returns ``True``.
+            cost: the cost of the to be consumed request by rate limit.
 
         Returns:
             A decorator that wraps the target with rate limit enforcement.
@@ -397,6 +403,7 @@ class FalconRateLimiter:
             methods=methods,
             per_method=per_method,
             exempt_when=exempt_when,
+            cost=cost,
         )
 
         def decorator(target: Any) -> Any:

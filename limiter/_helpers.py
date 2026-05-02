@@ -32,6 +32,7 @@ class RateLimitDefinition:
     methods: frozenset[str] | None = None
     per_method: bool = False
     exempt_when: Callable[[falcon.Request], bool] | None = None
+    cost: int | Callable[[falcon.Request], int] = 1
 
 
 def _get_request_response(
@@ -211,6 +212,26 @@ def _should_skip_limit(
     )
 
 
+def _resolve_limit_cost(
+    req: falcon.Request,
+    limit: RateLimitDefinition,
+) -> int:
+    limit_cost: int | Callable[[falcon.Request], int] = limit.cost
+    if callable(limit_cost):
+        resolved_cost = limit_cost(req)
+    else:
+        return limit_cost
+    if (
+        type(resolved_cost) is bool
+        or type(resolved_cost) is not int
+        or resolved_cost <= 0
+    ):
+        raise ValueError(
+            "Invalid resolved limit cost value. It should be a positive integer."
+        )
+    return resolved_cost
+
+
 def _check_rate_limit(
     limiter: FixedWindowRateLimiter,
     resolved_limit: RateLimitDefinition,
@@ -243,7 +264,8 @@ def _check_rate_limit(
         resolved_limit.key_func,
         per_method=resolved_limit.per_method,
     )
-    allowed = limiter.hit(resolved_limit.rate_limit_item, key)
+    resolved_cost = _resolve_limit_cost(req, resolved_limit)
+    allowed = limiter.hit(resolved_limit.rate_limit_item, key, cost=resolved_cost)
     stats: WindowStats | None = None
     if headers_enabled or not allowed:
         stats = limiter.get_window_stats(resolved_limit.rate_limit_item, key)
