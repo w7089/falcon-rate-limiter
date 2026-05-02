@@ -170,6 +170,58 @@ With the default responder scope, methods such as `on_get` and `on_post` often
 already have separate counters. `per_method=True` is most useful when a shared
 or manually chosen scope would otherwise group multiple HTTP methods together.
 
+## Weighted requests
+
+Use `cost` when one request should consume more than one quota unit.
+
+```python
+class ReportResource:
+    @limiter.rate_limit(
+        requests=50,
+        per=relativedelta(minutes=1),
+        cost=10,
+    )
+    def on_post(self, req: falcon.Request, resp: falcon.Response) -> None:
+        resp.text = "created"
+```
+
+In this example, each accepted request consumes ten quota units from the
+`50/minute` limit.
+
+`cost` can also be a callable that derives quota units from the current request:
+
+```python
+class BatchResource:
+    @limiter.rate_limit(
+        requests=100,
+        per=relativedelta(minutes=1),
+        cost=lambda req: int(req.get_header("X-Batch-Size") or "1"),
+    )
+    def on_post(self, req: falcon.Request, resp: falcon.Response) -> None:
+        resp.text = "accepted"
+```
+
+Requests skipped by `methods=[...]` or `exempt_when` do not resolve cost and do
+not consume quota for that limit.
+
+`cost` is also supported by explicit middleware limits:
+
+```python
+middleware = FalconRateLimitMiddleware(
+    limiter,
+    requests=100,
+    per=relativedelta(minutes=1),
+    cost=5,
+)
+```
+
+Default limits configured on `FalconRateLimiter` do not currently accept
+`cost`. When weighted middleware limits are needed, configure the middleware
+limit explicitly with `requests`, `per`, and `cost`.
+
+`cost` callables are synchronous and should be fast. Return a positive integer.
+Invalid callable return values raise `ValueError`.
+
 ## Conditional exemptions
 
 Use `exempt_when` when a specific limit should be skipped for selected requests.
