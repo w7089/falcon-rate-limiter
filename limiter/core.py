@@ -369,25 +369,34 @@ class FalconRateLimiter:
         exempt_when: Callable[[falcon.Request], bool] | None = None,
         cost: int | Callable[[falcon.Request], int] = 1,
     ) -> Callable[[Any], Any]:
-        """
-            Decorator to apply a shared rate limit to a responder or resource class. Shared rate limits consume the same bucket identified by a given scope
-            Args:
-                requests: Maximum requests allowed in the time window.
-                per: Time window duration (e.g., ``relativedelta(seconds=10)``).
-                scope: Identifier of the rate limiting bucket.
-                key_func: Optional override for client key extraction.
-                error_message: Custom message for HTTP 429 responses.
-                methods: Optional HTTP method filter. When provided, the limit is
-                    enforced only for matching request methods.
-                per_method: Whether to include the request method in the
-                    rate-limit key.
-                exempt_when: Optional predicate that skips this limit when it returns ``True``.
-                cost: Quota units consumed by the request, or a callable that
-                    returns the quota units for the current request.
+        """Decorator to apply one shared rate limit across multiple targets.
+
+        Responders and resource classes decorated through the returned wrapper
+        all consume quota from the same bucket identified by ``scope``. When
+        ``per_method`` is ``False``, matching requests share that bucket across
+        HTTP methods as well.
+
+        Args:
+            requests: Maximum requests allowed in the time window.
+            per: Time window duration (e.g., ``relativedelta(seconds=10)``).
+            scope: Shared identifier used to build the underlying bucket key.
+            key_func: Optional override for client key extraction.
+            error_message: Custom message for HTTP 429 responses.
+            methods: Optional HTTP method filter. When provided, the limit is
+                enforced only for matching request methods.
+            per_method: Whether to include the request method in the
+                rate-limit key.
+            exempt_when: Optional predicate that skips this limit when it
+                returns ``True``.
+            cost: Quota units consumed by the request, or a callable that
+                returns the quota units for the current request.
 
         Returns:
             A decorator that wraps the target with rate limit enforcement.
 
+        Raises:
+            ValueError: Propagated when the supplied rate limit configuration
+                cannot be converted into a ``limits`` rate item.
         """
         resolved_limit = self.create_limit(
             requests=requests,
@@ -462,14 +471,27 @@ class FalconRateLimiter:
         resolved_limit: RateLimitDefinition,
         shared_limit: str | None = None,
     ) -> Callable[..., Any] | type:
-        """
-        Private helper which does the actual work of decorating a responder or resource class with the given limit.
+        """Wrap a responder or resource class with a resolved limit definition.
+
+        Resource classes are updated in place by wrapping each ``on_*``
+        responder. Individual responders receive a sync or async wrapper based
+        on the original callable. When ``shared_limit`` is provided, that scope
+        is reused for every wrapped responder instead of each responder's
+        ``__qualname__``.
+
         Args:
-            target: Target to decorate. A resource class or a responder
+            target: Responder or resource class to decorate.
             resolved_limit: Limit to apply to this responder or resource class.
-            shared_limit: If provided, the name of the shared limit scope to use instead of the default scope based on the target's name.
+            shared_limit: Optional shared scope identifier to use instead of the
+                responder's ``__qualname__``.
+
         Returns:
-            The decorated target, which is the same object for classes and a wrapper function for responders.
+            The decorated target. Resource classes are returned in place, while
+            responders return a wrapper function.
+
+        Raises:
+            AttributeError: Raised when the target does not allow replacing
+                responder attributes during class decoration.
         """
         # When decorating a class, wrap all on_* responder methods
         limit_scope = shared_limit or target.__qualname__
