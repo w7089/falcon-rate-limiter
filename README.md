@@ -7,6 +7,7 @@ Current implemented features include:
 
 - decorator-based rate limiting for Falcon responders
 - class-level rate limiting for Falcon resources
+- shared limits across multiple responders or resources
 - sync and async (ASGI) responder support
 - per-client keys via `key_func`
 - `429 Too Many Requests` errors via `falcon.HTTPTooManyRequests`
@@ -73,6 +74,57 @@ class ArticleResource:
 
 Class decoration applies the same limit wrapper to all methods whose names start
 with `on_`.
+
+## Shared limits
+
+Use `shared_limit()` when multiple responders or resources should consume quota
+from the same bucket.
+
+```python
+shared_api_limit = limiter.shared_limit(
+    requests=5,
+    per=relativedelta(minutes=1),
+    scope="api-v1",
+)
+
+
+class SearchResource:
+    @shared_api_limit
+    def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+        resp.text = "search"
+
+
+class SuggestResource:
+    @shared_api_limit
+    def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+        resp.text = "suggest"
+```
+
+With this setup, requests to `/search` and `/suggest` spend from the same
+`api-v1` bucket for a given client key.
+
+You can also apply one shared decorator to a resource class:
+
+```python
+shared_write_limit = limiter.shared_limit(
+    requests=10,
+    per=relativedelta(minutes=1),
+    scope="writes",
+    per_method=True,
+)
+
+
+@shared_write_limit
+class ArticleResource:
+    def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+        resp.text = "list"
+
+    def on_post(self, req: falcon.Request, resp: falcon.Response) -> None:
+        resp.text = "created"
+```
+
+When `per_method=True`, the shared scope still separates counters by HTTP
+method, so `GET` and `POST` do not consume the same bucket.
 
 ## Custom error messages
 
