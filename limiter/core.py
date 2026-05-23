@@ -356,6 +356,53 @@ class FalconRateLimiter:
         _mark_rate_limit_exempt(target)
         return target
 
+    def shared_limit(
+        self,
+        requests: int,
+        per: relativedelta,
+        scope: str,
+        *,
+        key_func: Callable[[falcon.Request], str] | None = None,
+        error_message: str | None = None,
+        methods: Iterable[str] | None = None,
+        per_method: bool = False,
+        exempt_when: Callable[[falcon.Request], bool] | None = None,
+        cost: int | Callable[[falcon.Request], int] = 1,
+    ) -> Callable[[Any], Any]:
+        """
+            Decorator to apply a shared rate limit to a responder or resource class. Shared rate limits consume the same bucket identified by a given scope
+            Args:
+                requests: Maximum requests allowed in the time window.
+                per: Time window duration (e.g., ``relativedelta(seconds=10)``).
+                scope: Identifier of the rate limiting bucket.
+                key_func: Optional override for client key extraction.
+                error_message: Custom message for HTTP 429 responses.
+                methods: Optional HTTP method filter. When provided, the limit is
+                    enforced only for matching request methods.
+                per_method: Whether to include the request method in the
+                    rate-limit key.
+                exempt_when: Optional predicate that skips this limit when it returns ``True``.
+                cost: Quota units consumed by the request, or a callable that
+                    returns the quota units for the current request.
+
+        Returns:
+            A decorator that wraps the target with rate limit enforcement.
+
+        """
+        resolved_limit = self.create_limit(
+            requests=requests,
+            per=per,
+            key_func=key_func,
+            error_message=error_message,
+            methods=methods,
+            per_method=per_method,
+            exempt_when=exempt_when,
+            cost=cost,
+        )
+        return lambda target: self._decorate_target_with_limit(
+            target, resolved_limit, shared_limit=scope
+        )
+
     def rate_limit(
         self,
         requests: int,
@@ -407,40 +454,59 @@ class FalconRateLimiter:
             cost=cost,
         )
 
-        def decorator(target: Any) -> Any:
-            # When decorating a class, wrap all on_* responder methods
-            if inspect.isclass(target):
-                for name, value in vars(target).items():
-                    if name.startswith("on_") and callable(value):
-                        setattr(target, name, decorator(value))
-                _mark_rate_limited(target)
-                return target
+        return lambda target: self._decorate_target_with_limit(target, resolved_limit)
 
-            @wraps(target)
-            def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-                # args = (self/resource, req, resp, ...) for bound methods
-                if self._is_exempt_call(target, sync_wrapper, args):
-                    return target(*args, **kwargs)
-                req, resp = _get_request_response(args)
-                self.enforce_limit(resolved_limit, target.__qualname__, req, resp)
-                return target(*args, **kwargs)
-
-            @wraps(target)
-            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
-                # args = (self/resource, req, resp, ...) for bound methods
-                if self._is_exempt_call(target, async_wrapper, args):
-                    return await target(*args, **kwargs)
-                req, resp = _get_request_response(args)
-                await self.enforce_limit_async(
-                    resolved_limit, target.__qualname__, req, resp
-                )
-                return await target(*args, **kwargs)
-
+    def _decorate_target_with_limit(
+        self,
+        target: Callable[..., Any] | type,
+        resolved_limit: RateLimitDefinition,
+        shared_limit: str | None = None,
+    ) -> Callable[..., Any] | type:
+        """
+        Private helper which does the actual work of decorating a responder or resource class with the given limit.
+        Args:
+            target: Target to decorate. A resource class or a responder
+            resolved_limit: Limit to apply to this responder or resource class.
+            shared_limit: If provided, the name of the shared limit scope to use instead of the default scope based on the target's name.
+        Returns:
+            The decorated target, which is the same object for classes and a wrapper function for responders.
+        """
+        # When decorating a class, wrap all on_* responder methods
+        limit_scope = shared_limit or target.__qualname__
+        if inspect.isclass(target):
+            for name, value in vars(target).items():
+                if name.startswith("on_") and callable(value):
+                    setattr(
+                        target,
+                        name,
+                        self._decorate_target_with_limit(
+                            value, resolved_limit, shared_limit
+                        ),
+                    )
             _mark_rate_limited(target)
-            if inspect.iscoroutinefunction(target):
-                _mark_rate_limited(async_wrapper)
-                return async_wrapper
-            _mark_rate_limited(sync_wrapper)
-            return sync_wrapper
+            return target
 
-        return decorator
+        @wraps(target)
+        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
+            # args = (self/resource, req, resp, ...) for bound methods
+            if self._is_exempt_call(target, sync_wrapper, args):
+                return target(*args, **kwargs)
+            req, resp = _get_request_response(args)
+            self.enforce_limit(resolved_limit, limit_scope, req, resp)
+            return target(*args, **kwargs)
+
+        @wraps(target)
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+            # args = (self/resource, req, resp, ...) for bound methods
+            if self._is_exempt_call(target, async_wrapper, args):
+                return await target(*args, **kwargs)
+            req, resp = _get_request_response(args)
+            await self.enforce_limit_async(resolved_limit, limit_scope, req, resp)
+            return await target(*args, **kwargs)
+
+        _mark_rate_limited(target)
+        if inspect.iscoroutinefunction(target):
+            _mark_rate_limited(async_wrapper)
+            return async_wrapper
+        _mark_rate_limited(sync_wrapper)
+        return sync_wrapper
