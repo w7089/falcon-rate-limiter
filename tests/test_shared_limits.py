@@ -130,3 +130,41 @@ def test_shared_limit_per_method_counts_methods_separately() -> None:
     assert client.get("/shared-method").status_code == HTTP_429
     assert client.post("/shared-method").status_code == HTTP_200
     assert client.post("/shared-method").status_code == HTTP_429
+
+
+def test_shared_limit_methods_filter_skips_non_matching_requests() -> None:
+    limiter = FalconRateLimiter(headers_enabled=False)
+    shared_limit = limiter.shared_limit(
+        requests=2,
+        per=relativedelta(minutes=1),
+        scope="filtered-shared",
+        methods=["GET"],
+    )
+
+    class SearchResource:
+        @shared_limit
+        def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.text = "search"
+
+        @shared_limit
+        def on_post(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.text = "search post"
+
+    class SuggestResource:
+        @shared_limit
+        def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.text = "suggest"
+
+    app = falcon.App()
+    app.add_route("/search", SearchResource())
+    app.add_route("/suggest", SuggestResource())
+    client = TestClient(app)
+
+    assert client.post("/search").status_code == HTTP_200
+    assert client.get("/search").status_code == HTTP_200
+    assert client.get("/search").status_code == HTTP_200
+
+    blocked = client.get("/suggest")
+
+    assert blocked.status_code == HTTP_429
+    assert blocked.json["description"] == DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
