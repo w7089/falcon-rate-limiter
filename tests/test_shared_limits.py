@@ -211,3 +211,69 @@ def test_shared_limit_exempt_when_skips_exempted_requests() -> None:
     assert blocked.status_code == HTTP_429
     assert blocked.json["description"] == DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
     assert key_func_calls == 3
+
+
+def test_shared_limit_static_cost_consumes_shared_quota() -> None:
+    limiter = FalconRateLimiter(headers_enabled=False)
+    shared_limit = limiter.shared_limit(
+        requests=5,
+        per=relativedelta(minutes=1),
+        scope="weighted-shared",
+        cost=2,
+    )
+
+    class SearchResource:
+        @shared_limit
+        def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.text = "search"
+
+    class SuggestResource:
+        @shared_limit
+        def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.text = "suggest"
+
+    app = falcon.App()
+    app.add_route("/search", SearchResource())
+    app.add_route("/suggest", SuggestResource())
+    client = TestClient(app)
+
+    assert client.get("/search").status_code == HTTP_200
+    assert client.get("/search").status_code == HTTP_200
+
+    blocked = client.get("/suggest")
+
+    assert blocked.status_code == HTTP_429
+    assert blocked.json["description"] == DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
+
+
+def test_shared_limit_callable_cost_consumes_dynamic_shared_quota() -> None:
+    limiter = FalconRateLimiter(headers_enabled=False)
+    shared_limit = limiter.shared_limit(
+        requests=5,
+        per=relativedelta(minutes=1),
+        scope="dynamic-weighted-shared",
+        cost=lambda req: int(req.get_header("X-Cost") or "1"),
+    )
+
+    class SearchResource:
+        @shared_limit
+        def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.text = "search"
+
+    class SuggestResource:
+        @shared_limit
+        def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.text = "suggest"
+
+    app = falcon.App()
+    app.add_route("/search", SearchResource())
+    app.add_route("/suggest", SuggestResource())
+    client = TestClient(app)
+
+    assert client.get("/search", headers={"X-Cost": "3"}).status_code == HTTP_200
+    assert client.get("/suggest", headers={"X-Cost": "2"}).status_code == HTTP_200
+
+    blocked = client.get("/search")
+
+    assert blocked.status_code == HTTP_429
+    assert blocked.json["description"] == DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
