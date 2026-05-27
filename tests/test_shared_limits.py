@@ -10,6 +10,7 @@ from limiter.core import FalconRateLimiter
 
 HTTP_200 = HTTPStatus.OK
 HTTP_429 = HTTPStatus.TOO_MANY_REQUESTS
+INTERNAL_HEADERS = {"X-Internal": "true"}
 
 
 def test_sync_shared_limit_uses_one_bucket_across_two_routes() -> None:
@@ -168,3 +169,45 @@ def test_shared_limit_methods_filter_skips_non_matching_requests() -> None:
 
     assert blocked.status_code == HTTP_429
     assert blocked.json["description"] == DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
+
+
+def test_shared_limit_exempt_when_skips_exempted_requests() -> None:
+    key_func_calls = 0
+
+    def key_func(req: falcon.Request) -> str:
+        nonlocal key_func_calls
+        key_func_calls += 1
+        return "client"
+
+    limiter = FalconRateLimiter(key_func=key_func, headers_enabled=False)
+    shared_limit = limiter.shared_limit(
+        requests=2,
+        per=relativedelta(minutes=1),
+        scope="conditional-shared",
+        exempt_when=lambda req: req.get_header("X-Internal") == "true",
+    )
+
+    class SearchResource:
+        @shared_limit
+        def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.text = "search"
+
+    class SuggestResource:
+        @shared_limit
+        def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+            resp.text = "suggest"
+
+    app = falcon.App()
+    app.add_route("/search", SearchResource())
+    app.add_route("/suggest", SuggestResource())
+    client = TestClient(app)
+
+    assert client.get("/search").status_code == HTTP_200
+    assert client.get("/search", headers=INTERNAL_HEADERS).status_code == HTTP_200
+    assert client.get("/search").status_code == HTTP_200
+
+    blocked = client.get("/suggest")
+
+    assert blocked.status_code == HTTP_429
+    assert blocked.json["description"] == DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
+    assert key_func_calls == 3
