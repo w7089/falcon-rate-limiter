@@ -12,6 +12,7 @@ from limiter.constants import (
     MOVING_WINDOW_STRATEGY,
     SLIDING_WINDOW_COUNTER_STRATEGY,
 )
+from tests.test_storage import FlakyMemoryStorage
 
 
 @pytest.mark.parametrize(
@@ -45,3 +46,18 @@ def test_storage_controller_uses_configured_strategy(
     controller = StorageController(storage=MemoryStorage(), strategy=strategy)
 
     assert isinstance(controller.current_limiter, expected_type)
+
+
+def test_storage_controller_uses_configured_strategy_for_fallback() -> None:
+    storage = FlakyMemoryStorage()
+    controller = StorageController(
+        storage=storage,
+        strategy=MOVING_WINDOW_STRATEGY,
+        recovery_backoff_seconds=0.0,
+        max_recovery_backoff_seconds=0.0,
+    )
+
+    activated = controller.activate_fallback_storage_for_error(RuntimeError("boom"))
+
+    assert activated is True
+    assert isinstance(controller.current_limiter, MovingWindowRateLimiter)

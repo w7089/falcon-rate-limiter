@@ -4,7 +4,7 @@ from typing import cast
 
 from limits.errors import StorageError
 from limits.storage import MemoryStorage, Storage, storage_from_string
-from limits.strategies import FixedWindowRateLimiter, RateLimiter
+from limits.strategies import RateLimiter
 from redis.exceptions import RedisError
 
 from limiter.constants import (
@@ -223,7 +223,9 @@ class StorageController:
         if self._fallback_storage is None:
             self._fallback_storage = MemoryStorage()
         if self._fallback_limiter is None:
-            self._fallback_limiter = FixedWindowRateLimiter(self._fallback_storage)
+            self._fallback_limiter = self._resolved_limiter_class(
+                self._fallback_storage
+            )
         self._using_fallback_storage = True
         self._current_recovery_backoff_seconds = self._recovery_backoff_seconds
         probe_delay = self._schedule_next_recovery_probe()
