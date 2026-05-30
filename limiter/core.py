@@ -15,7 +15,7 @@ from limiter._helpers import (
     _mark_rate_limited,
     _mark_rate_limit_exempt,
 )
-from limiter.constants import DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
+from limiter.constants import DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE, FIXED_WINDOW_STRATEGY
 from limiter._storage import STORAGE_BACKEND_EXCEPTIONS, StorageController
 from limiter.utils import (
     _create_rate_limit_item,
@@ -42,11 +42,13 @@ class FalconRateLimiter:
         recovery_backoff_seconds: Initial delay before probing failed primary
             storage for recovery.
         max_recovery_backoff_seconds: Maximum delay between recovery probes.
+        strategy: Strategy to use for rate limiting. Must a be string from limiter.constants. FIXED_WINDOW_STRATEGY is the default strategy.
     """
 
     def __init__(
         self,
         *,
+        strategy: str = FIXED_WINDOW_STRATEGY,
         storage: Storage | None = None,
         storage_uri: str | None = None,
         key_func: Callable[[falcon.Request], str] | None = None,
@@ -62,6 +64,7 @@ class FalconRateLimiter:
             storage_uri=storage_uri,
             recovery_backoff_seconds=recovery_backoff_seconds,
             max_recovery_backoff_seconds=max_recovery_backoff_seconds,
+            strategy=strategy,
         )
         self._key_func = key_func
         self._default_limit = self._create_default_limit(default_requests, default_per)

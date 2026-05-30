@@ -1,9 +1,33 @@
 """Shared constants for user-visible limiter messages and storage events."""
 
+from limits.strategies import (
+    FixedWindowRateLimiter,
+    MovingWindowRateLimiter,
+    SlidingWindowCounterRateLimiter,
+)
+
+FIXED_WINDOW_STRATEGY = "fixed-window"
+MOVING_WINDOW_STRATEGY = "moving-window"
+SLIDING_WINDOW_COUNTER_STRATEGY = "sliding-window-counter"
+
+SupportedRateLimiterClass = type[
+    FixedWindowRateLimiter | MovingWindowRateLimiter | SlidingWindowCounterRateLimiter
+]
+
+LIMITS_LIMITER_PER_STRATEGY: dict[str, SupportedRateLimiterClass] = {
+    FIXED_WINDOW_STRATEGY: FixedWindowRateLimiter,
+    MOVING_WINDOW_STRATEGY: MovingWindowRateLimiter,
+    SLIDING_WINDOW_COUNTER_STRATEGY: SlidingWindowCounterRateLimiter,
+}
+
 DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE = "Rate limit exceeded"
 EMPTY_METHODS_ERROR_MESSAGE = "methods must contain at least one HTTP method"
 INVALID_LIMIT_COST_ERROR_MESSAGE = (
     "Invalid resolved limit cost value. It should be a positive integer."
+)
+INVALID_RATE_LIMIT_STRATEGY_ERROR_MESSAGE = (
+    "Invalid rate limiting strategy. Supported strategies are: "
+    "fixed-window, moving-window, sliding-window-counter."
 )
 
 PRIMARY_STORAGE_UNAVAILABLE_MESSAGE = (
