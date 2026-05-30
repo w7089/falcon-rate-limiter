@@ -15,7 +15,7 @@ from limiter._helpers import (
     _mark_rate_limited,
     _mark_rate_limit_exempt,
 )
-from limiter.constants import DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
+from limiter.constants import DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE, FIXED_WINDOW_STRATEGY
 from limiter._storage import STORAGE_BACKEND_EXCEPTIONS, StorageController
 from limiter.utils import (
     _create_rate_limit_item,
@@ -34,6 +34,9 @@ class FalconRateLimiter:
         storage: Backend storage for rate limit counters. Defaults to in-memory.
         storage_uri: Storage URI resolved by ``limits`` (for example
             ``"memory://"`` or ``"redis://localhost:6379/0"``).
+        strategy: Rate limiting strategy name. Use the exported strategy
+            constants from ``limiter.constants``. Defaults to
+            ``FIXED_WINDOW_STRATEGY``.
         key_func: Default function to extract client identifiers from requests.
         default_requests: Default limit count for middleware (requires default_per).
         default_per: Default time window for middleware (requires default_requests).
@@ -47,6 +50,7 @@ class FalconRateLimiter:
     def __init__(
         self,
         *,
+        strategy: str = FIXED_WINDOW_STRATEGY,
         storage: Storage | None = None,
         storage_uri: str | None = None,
         key_func: Callable[[falcon.Request], str] | None = None,
@@ -62,6 +66,7 @@ class FalconRateLimiter:
             storage_uri=storage_uri,
             recovery_backoff_seconds=recovery_backoff_seconds,
             max_recovery_backoff_seconds=max_recovery_backoff_seconds,
+            strategy=strategy,
         )
         self._key_func = key_func
         self._default_limit = self._create_default_limit(default_requests, default_per)

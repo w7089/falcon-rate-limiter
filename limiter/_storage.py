@@ -4,7 +4,7 @@ from typing import cast
 
 from limits.errors import StorageError
 from limits.storage import MemoryStorage, Storage, storage_from_string
-from limits.strategies import FixedWindowRateLimiter
+from limits.strategies import RateLimiter
 from redis.exceptions import RedisError
 
 from limiter.constants import (
@@ -13,6 +13,10 @@ from limiter.constants import (
     PRIMARY_STORAGE_RECOVERED_LOG_MESSAGE,
     PRIMARY_STORAGE_STILL_UNAVAILABLE_LOG_MESSAGE,
     PRIMARY_STORAGE_UNAVAILABLE_MESSAGE,
+    FIXED_WINDOW_STRATEGY,
+    LIMITS_LIMITER_PER_STRATEGY,
+    SupportedRateLimiterClass,
+    INVALID_RATE_LIMIT_STRATEGY_ERROR_MESSAGE,
 )
 
 _STORAGE_LOGGER = logging.getLogger("falcon-rate-limiter")
@@ -59,6 +63,9 @@ class StorageController:
         storage_uri: Storage URI to resolve via ``limits``.
         recovery_backoff_seconds: Initial delay before probing for recovery.
         max_recovery_backoff_seconds: Maximum recovery probe delay.
+        strategy: Rate limiting strategy name. Use the exported strategy
+            constants from ``limiter.constants``. Defaults to
+            ``FIXED_WINDOW_STRATEGY``.
 
     Raises:
         ValueError: When storage configuration is invalid.
@@ -70,6 +77,7 @@ class StorageController:
         storage_uri: str | None = None,
         recovery_backoff_seconds: float = 1.0,
         max_recovery_backoff_seconds: float = 60.0,
+        strategy: str = FIXED_WINDOW_STRATEGY,
     ) -> None:
         if recovery_backoff_seconds < 0:
             raise ValueError("recovery_backoff_seconds must be >= 0")
@@ -79,8 +87,12 @@ class StorageController:
             )
         self._primary_storage = _resolve_storage(storage, storage_uri)
         self._fallback_storage: MemoryStorage | None = None
-        self._primary_limiter = FixedWindowRateLimiter(self._primary_storage)
-        self._fallback_limiter: FixedWindowRateLimiter | None = None
+        if strategy not in LIMITS_LIMITER_PER_STRATEGY.keys():
+            raise ValueError(INVALID_RATE_LIMIT_STRATEGY_ERROR_MESSAGE)
+        resolved_limiter = LIMITS_LIMITER_PER_STRATEGY[strategy]
+        self._primary_limiter: RateLimiter = resolved_limiter(self._primary_storage)
+        self._resolved_limiter_class: SupportedRateLimiterClass = resolved_limiter
+        self._fallback_limiter: RateLimiter | None = None
         self._recovery_backoff_seconds = recovery_backoff_seconds
         self._max_recovery_backoff_seconds = max_recovery_backoff_seconds
         self._current_recovery_backoff_seconds = recovery_backoff_seconds
@@ -93,7 +105,7 @@ class StorageController:
             self._switch_to_fallback_storage(PRIMARY_STORAGE_UNAVAILABLE_MESSAGE)
 
     @property
-    def current_limiter(self) -> FixedWindowRateLimiter:
+    def current_limiter(self) -> RateLimiter:
         """Return the limiter that is currently active.
 
         Returns:
@@ -110,7 +122,7 @@ class StorageController:
             return self._fallback_limiter
         return self._primary_limiter
 
-    def limiter_for_enforcement(self) -> FixedWindowRateLimiter:
+    def limiter_for_enforcement(self) -> RateLimiter:
         """Return the rate limiter that should handle the current request.
 
         Returns:
@@ -208,7 +220,9 @@ class StorageController:
         if self._fallback_storage is None:
             self._fallback_storage = MemoryStorage()
         if self._fallback_limiter is None:
-            self._fallback_limiter = FixedWindowRateLimiter(self._fallback_storage)
+            self._fallback_limiter = self._resolved_limiter_class(
+                self._fallback_storage
+            )
         self._using_fallback_storage = True
         self._current_recovery_backoff_seconds = self._recovery_backoff_seconds
         probe_delay = self._schedule_next_recovery_probe()

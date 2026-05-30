@@ -5,7 +5,7 @@ from typing import Any, Callable, cast
 
 import falcon
 from limits import RateLimitItem
-from limits.strategies import FixedWindowRateLimiter
+from limits.strategies import RateLimiter
 from limits.util import WindowStats
 
 from limiter.constants import INVALID_LIMIT_COST_ERROR_MESSAGE
@@ -236,7 +236,7 @@ def _resolve_limit_cost(
 
 
 def _check_rate_limit(
-    limiter: FixedWindowRateLimiter,
+    limiter: RateLimiter,
     resolved_limit: RateLimitDefinition,
     headers_enabled: bool,
     scope: str,
@@ -282,7 +282,7 @@ def _check_rate_limit(
 
 
 async def _check_rate_limit_async(
-    limiter: FixedWindowRateLimiter,
+    limiter: RateLimiter,
     resolved_limit: RateLimitDefinition,
     headers_enabled: bool,
     scope: str,

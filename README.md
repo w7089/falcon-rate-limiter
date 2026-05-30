@@ -361,6 +361,26 @@ limiter = FalconRateLimiter(storage_uri="redis://localhost:6379/0")
 If you already created a `limits` storage object yourself, you can still pass
 it with `storage=...`. `storage` and `storage_uri` are mutually exclusive.
 
+### Strategy selection
+
+The limiter uses the fixed-window strategy by default. You can choose a
+different `limits` strategy at construction time:
+
+```python
+from limiter.constants import MOVING_WINDOW_STRATEGY
+
+limiter = FalconRateLimiter(strategy=MOVING_WINDOW_STRATEGY)
+```
+
+Exported strategy constants:
+
+- `FIXED_WINDOW_STRATEGY`
+- `MOVING_WINDOW_STRATEGY`
+- `SLIDING_WINDOW_COUNTER_STRATEGY`
+
+The configured strategy applies to both the primary storage backend and the
+in-memory fallback backend.
+
 ### Storage resilience
 
 When a non-memory primary storage backend is unavailable during startup or
