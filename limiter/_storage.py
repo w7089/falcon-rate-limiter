@@ -16,6 +16,7 @@ from limiter.constants import (
     FIXED_WINDOW_STRATEGY,
     LIMITS_LIMITER_PER_STRATEGY,
     SupportedRateLimiterClass,
+    INVALID_RATE_LIMIT_STRATEGY_ERROR_MESSAGE,
 )
 
 _STORAGE_LOGGER = logging.getLogger("falcon-rate-limiter")
@@ -87,11 +88,7 @@ class StorageController:
         self._primary_storage = _resolve_storage(storage, storage_uri)
         self._fallback_storage: MemoryStorage | None = None
         if strategy not in LIMITS_LIMITER_PER_STRATEGY.keys():
-            raise ValueError(
-                "strategy must be one of {}".format(
-                    list(LIMITS_LIMITER_PER_STRATEGY.keys())
-                )
-            )
+            raise ValueError(INVALID_RATE_LIMIT_STRATEGY_ERROR_MESSAGE)
         resolved_limiter = LIMITS_LIMITER_PER_STRATEGY[strategy]
         self._primary_limiter: RateLimiter = resolved_limiter(self._primary_storage)
         self._resolved_limiter_class: SupportedRateLimiterClass = resolved_limiter

@@ -25,10 +25,7 @@ EMPTY_METHODS_ERROR_MESSAGE = "methods must contain at least one HTTP method"
 INVALID_LIMIT_COST_ERROR_MESSAGE = (
     "Invalid resolved limit cost value. It should be a positive integer."
 )
-INVALID_RATE_LIMIT_STRATEGY_ERROR_MESSAGE = (
-    "Invalid rate limiting strategy. Supported strategies are: "
-    "fixed-window, moving-window, sliding-window-counter."
-)
+INVALID_RATE_LIMIT_STRATEGY_ERROR_MESSAGE = f"Invalid rate limiting strategy. Supported strategies are: {FIXED_WINDOW_STRATEGY}, {MOVING_WINDOW_STRATEGY}, {SLIDING_WINDOW_COUNTER_STRATEGY}."
 
 PRIMARY_STORAGE_UNAVAILABLE_MESSAGE = (
     "Primary storage is unavailable during initialization"
