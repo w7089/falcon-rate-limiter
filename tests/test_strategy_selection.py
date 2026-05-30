@@ -9,6 +9,7 @@ import pytest
 from limiter._storage import StorageController
 from limiter.constants import (
     FIXED_WINDOW_STRATEGY,
+    INVALID_RATE_LIMIT_STRATEGY_ERROR_MESSAGE,
     MOVING_WINDOW_STRATEGY,
     SLIDING_WINDOW_COUNTER_STRATEGY,
 )
@@ -61,3 +62,8 @@ def test_storage_controller_uses_configured_strategy_for_fallback() -> None:
 
     assert activated is True
     assert isinstance(controller.current_limiter, MovingWindowRateLimiter)
+
+
+def test_storage_controller_rejects_unknown_strategy() -> None:
+    with pytest.raises(ValueError, match=INVALID_RATE_LIMIT_STRATEGY_ERROR_MESSAGE):
+        StorageController(storage=MemoryStorage(), strategy="not-a-strategy")
