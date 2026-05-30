@@ -13,6 +13,7 @@ from limiter.constants import (
     MOVING_WINDOW_STRATEGY,
     SLIDING_WINDOW_COUNTER_STRATEGY,
 )
+from limiter.core import FalconRateLimiter
 from tests.test_storage import FlakyMemoryStorage
 
 
@@ -67,3 +68,12 @@ def test_storage_controller_uses_configured_strategy_for_fallback() -> None:
 def test_storage_controller_rejects_unknown_strategy() -> None:
     with pytest.raises(ValueError, match=INVALID_RATE_LIMIT_STRATEGY_ERROR_MESSAGE):
         StorageController(storage=MemoryStorage(), strategy="not-a-strategy")
+
+
+def test_limiter_constructor_passes_strategy_to_storage_controller() -> None:
+    limiter = FalconRateLimiter(strategy=SLIDING_WINDOW_COUNTER_STRATEGY)
+
+    assert isinstance(
+        limiter._storage_controller.current_limiter,
+        SlidingWindowCounterRateLimiter,
+    )
