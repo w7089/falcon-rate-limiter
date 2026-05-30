@@ -62,7 +62,9 @@ class StorageController:
         storage_uri: Storage URI to resolve via ``limits``.
         recovery_backoff_seconds: Initial delay before probing for recovery.
         max_recovery_backoff_seconds: Maximum recovery probe delay.
-        strategy: Strategy to use for rate limiting. Must a be string from limiter.constants. Defaults to FIXED_WINDOW_STRATEGY.
+        strategy: Rate limiting strategy name. Use the exported strategy
+            constants from ``limiter.constants``. Defaults to
+            ``FIXED_WINDOW_STRATEGY``.
 
     Raises:
         ValueError: When storage configuration is invalid.

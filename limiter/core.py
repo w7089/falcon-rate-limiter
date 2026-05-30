@@ -34,6 +34,9 @@ class FalconRateLimiter:
         storage: Backend storage for rate limit counters. Defaults to in-memory.
         storage_uri: Storage URI resolved by ``limits`` (for example
             ``"memory://"`` or ``"redis://localhost:6379/0"``).
+        strategy: Rate limiting strategy name. Use the exported strategy
+            constants from ``limiter.constants``. Defaults to
+            ``FIXED_WINDOW_STRATEGY``.
         key_func: Default function to extract client identifiers from requests.
         default_requests: Default limit count for middleware (requires default_per).
         default_per: Default time window for middleware (requires default_requests).
@@ -42,7 +45,6 @@ class FalconRateLimiter:
         recovery_backoff_seconds: Initial delay before probing failed primary
             storage for recovery.
         max_recovery_backoff_seconds: Maximum delay between recovery probes.
-        strategy: Strategy to use for rate limiting. Must a be string from limiter.constants. FIXED_WINDOW_STRATEGY is the default strategy.
     """
 
     def __init__(
