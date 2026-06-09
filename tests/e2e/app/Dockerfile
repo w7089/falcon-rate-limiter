@@ -15,7 +15,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --no-dev --group e2e --no-install-project
 
 # Copy library source and install the project itself
-COPY limiter/ ./limiter/
+COPY falcon_rate_limiter/ ./falcon_rate_limiter/
 RUN uv sync --no-dev --group e2e
 
 # Copy the e2e app entrypoint

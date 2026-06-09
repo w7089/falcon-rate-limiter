@@ -3,9 +3,9 @@ from dateutil.relativedelta import relativedelta
 from falcon.testing import TestClient
 from http import HTTPStatus
 
-from limiter import FalconRateLimitMiddleware
-from limiter.constants import DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
-from limiter.core import FalconRateLimiter
+from falcon_rate_limiter import FalconRateLimitMiddleware
+from falcon_rate_limiter.constants import DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
+from falcon_rate_limiter.core import FalconRateLimiter
 from tests.test_app import (
     create_async_middleware_app,
     create_middleware_app,

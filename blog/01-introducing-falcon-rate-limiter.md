@@ -18,7 +18,7 @@ pip install falcon-rate-limiter
 ```python
 import falcon
 from dateutil.relativedelta import relativedelta
-from limiter import FalconRateLimiter
+from falcon_rate_limiter import FalconRateLimiter
 
 limiter = FalconRateLimiter()
 
@@ -97,7 +97,7 @@ class ApiResource:
 Decorating every route is tedious. Middleware gives you a baseline:
 
 ```python
-from limiter import FalconRateLimiter, FalconRateLimitMiddleware
+from falcon_rate_limiter import FalconRateLimiter, FalconRateLimitMiddleware
 
 limiter = FalconRateLimiter()
 middleware = FalconRateLimitMiddleware(
@@ -203,10 +203,9 @@ The library is open-source and available on PyPI:
 
 ```bash
 pip install falcon-rate-limiter
-
-# With Redis support
-pip install "falcon-rate-limiter[redis]"
 ```
+
+Redis support is included in the current alpha dependency set.
 
 Contributions and feedback welcome on
 [GitHub](https://github.com/w7089/falcon-rate-limiter).

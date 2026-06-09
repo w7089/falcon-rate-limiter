@@ -4,7 +4,11 @@ from dateutil.relativedelta import relativedelta
 from falcon import testing
 from typing import Any, cast
 
-from limiter import FalconRateLimitMiddleware, FalconRateLimiter, get_remote_address
+from falcon_rate_limiter import (
+    FalconRateLimitMiddleware,
+    FalconRateLimiter,
+    get_remote_address,
+)
 
 
 def test_default_key_uses_forwarded_address() -> None:

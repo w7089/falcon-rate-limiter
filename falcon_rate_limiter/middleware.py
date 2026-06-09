@@ -4,10 +4,10 @@ from typing import TYPE_CHECKING, Any, Callable
 from dateutil.relativedelta import relativedelta
 import falcon
 
-from limiter._helpers import _is_rate_limit_exempt, _is_rate_limited
+from falcon_rate_limiter._helpers import _is_rate_limit_exempt, _is_rate_limited
 
 if TYPE_CHECKING:
-    from limiter.core import FalconRateLimiter
+    from falcon_rate_limiter.core import FalconRateLimiter
 
 
 class FalconRateLimitMiddleware:

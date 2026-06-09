@@ -3,11 +3,11 @@ from limits import RateLimitItemPerSecond
 from limits.errors import StorageError
 from limits.storage import MemoryStorage, storage_from_string
 
-from limiter.constants import (
+from falcon_rate_limiter.constants import (
     PRIMARY_STORAGE_RECOVERED_LOG_MESSAGE,
     PRIMARY_STORAGE_STILL_UNAVAILABLE_LOG_MESSAGE,
 )
-from limiter._storage import StorageController
+from falcon_rate_limiter._storage import StorageController
 
 
 class FlakyMemoryStorage(MemoryStorage):

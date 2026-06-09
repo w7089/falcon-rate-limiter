@@ -21,7 +21,7 @@ format:
 	uv run ruff format .
 
 type-check:
-	uv run mypy limiter
+	uv run mypy falcon_rate_limiter
 
 test:
 	uv run pytest

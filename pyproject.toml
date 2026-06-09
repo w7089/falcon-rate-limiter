@@ -47,10 +47,10 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["limiter"]
+packages = ["falcon_rate_limiter"]
 
 [tool.setuptools.package-data]
-limiter = ["py.typed"]
+falcon_rate_limiter = ["py.typed"]
 
 [dependency-groups]
 dev = [

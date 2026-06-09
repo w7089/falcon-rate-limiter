@@ -2,7 +2,7 @@ import falcon
 import falcon.asgi
 from dateutil.relativedelta import relativedelta
 
-from limiter import FalconRateLimitMiddleware, FalconRateLimiter
+from falcon_rate_limiter import FalconRateLimitMiddleware, FalconRateLimiter
 
 
 def create_app() -> falcon.App:

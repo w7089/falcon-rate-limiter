@@ -31,7 +31,7 @@ Use `FalconRateLimiter` when you want explicit, per-route decorators.
 import falcon
 from dateutil.relativedelta import relativedelta
 
-from limiter import FalconRateLimiter
+from falcon_rate_limiter import FalconRateLimiter
 
 limiter = FalconRateLimiter()
 
@@ -151,7 +151,7 @@ You can customize how clients are identified:
 ```python
 import falcon
 
-from limiter import FalconRateLimiter, get_remote_address
+from falcon_rate_limiter import FalconRateLimiter, get_remote_address
 
 
 def client_key(req: falcon.Request) -> str:
@@ -375,7 +375,7 @@ The limiter uses the fixed-window strategy by default. You can choose a
 different `limits` strategy at construction time:
 
 ```python
-from limiter.constants import MOVING_WINDOW_STRATEGY
+from falcon_rate_limiter.constants import MOVING_WINDOW_STRATEGY
 
 limiter = FalconRateLimiter(strategy=MOVING_WINDOW_STRATEGY)
 ```
@@ -420,7 +420,7 @@ decorating every route.
 import falcon
 from dateutil.relativedelta import relativedelta
 
-from limiter import FalconRateLimiter, FalconRateLimitMiddleware
+from falcon_rate_limiter import FalconRateLimiter, FalconRateLimitMiddleware
 
 limiter = FalconRateLimiter()
 middleware = FalconRateLimitMiddleware(
@@ -451,7 +451,7 @@ them to routes that do not have their own `@rate_limit(...)` decorator.
 import falcon
 from dateutil.relativedelta import relativedelta
 
-from limiter import FalconRateLimiter, FalconRateLimitMiddleware
+from falcon_rate_limiter import FalconRateLimiter, FalconRateLimitMiddleware
 
 limiter = FalconRateLimiter(
     default_requests=10,
@@ -517,7 +517,7 @@ decorator limits and middleware-applied default limits.
 ```python
 import falcon
 
-from limiter import FalconRateLimiter
+from falcon_rate_limiter import FalconRateLimiter
 
 limiter = FalconRateLimiter()
 
@@ -604,7 +604,7 @@ operations are executed in a worker thread so the event loop is not blocked.
 ```python
 import falcon.asgi
 
-from limiter import FalconRateLimiter, FalconRateLimitMiddleware
+from falcon_rate_limiter import FalconRateLimiter, FalconRateLimitMiddleware
 
 limiter = FalconRateLimiter()
 middleware = FalconRateLimitMiddleware(

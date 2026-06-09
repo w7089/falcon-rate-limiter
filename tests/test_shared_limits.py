@@ -5,8 +5,8 @@ import falcon.asgi
 from dateutil.relativedelta import relativedelta
 from falcon.testing import TestClient
 
-from limiter.constants import DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
-from limiter.core import FalconRateLimiter
+from falcon_rate_limiter.constants import DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
+from falcon_rate_limiter.core import FalconRateLimiter
 
 HTTP_200 = HTTPStatus.OK
 HTTP_429 = HTTPStatus.TOO_MANY_REQUESTS

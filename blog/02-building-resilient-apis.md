@@ -324,7 +324,7 @@ Here's a realistic production configuration:
 ```python
 import falcon
 from dateutil.relativedelta import relativedelta
-from limiter import FalconRateLimiter, FalconRateLimitMiddleware
+from falcon_rate_limiter import FalconRateLimiter, FalconRateLimitMiddleware
 
 limiter = FalconRateLimiter(
     storage_uri="redis://redis:6379/0",

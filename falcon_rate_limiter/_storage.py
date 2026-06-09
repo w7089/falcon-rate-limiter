@@ -7,7 +7,7 @@ from limits.storage import MemoryStorage, Storage, storage_from_string
 from limits.strategies import RateLimiter
 from redis.exceptions import RedisError
 
-from limiter.constants import (
+from falcon_rate_limiter.constants import (
     IN_MEMORY_FALLBACK_LOG_MESSAGE,
     PRIMARY_STORAGE_FAILED_DURING_REQUEST_MESSAGE,
     PRIMARY_STORAGE_RECOVERED_LOG_MESSAGE,
@@ -64,7 +64,7 @@ class StorageController:
         recovery_backoff_seconds: Initial delay before probing for recovery.
         max_recovery_backoff_seconds: Maximum recovery probe delay.
         strategy: Rate limiting strategy name. Use the exported strategy
-            constants from ``limiter.constants``. Defaults to
+            constants from ``falcon_rate_limiter.constants``. Defaults to
             ``FIXED_WINDOW_STRATEGY``.
 
     Raises:

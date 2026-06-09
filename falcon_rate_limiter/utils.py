@@ -11,7 +11,7 @@ from limits import (
 )
 from typing import Sequence, cast, Iterable
 
-from limiter.constants import EMPTY_METHODS_ERROR_MESSAGE
+from falcon_rate_limiter.constants import EMPTY_METHODS_ERROR_MESSAGE
 
 
 def _create_rate_limit_item(requests: int, per: relativedelta) -> RateLimitItem:

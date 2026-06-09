@@ -6,8 +6,8 @@ from http import HTTPStatus
 
 import pytest
 
-from limiter.constants import EMPTY_METHODS_ERROR_MESSAGE
-from limiter.core import FalconRateLimiter
+from falcon_rate_limiter.constants import EMPTY_METHODS_ERROR_MESSAGE
+from falcon_rate_limiter.core import FalconRateLimiter
 
 HTTP_200 = HTTPStatus.OK
 HTTP_429 = HTTPStatus.TOO_MANY_REQUESTS
