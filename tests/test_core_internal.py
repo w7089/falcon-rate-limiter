@@ -4,8 +4,7 @@ from dateutil.relativedelta import relativedelta
 from falcon import testing
 from typing import Any, cast
 
-from limiter import FalconRateLimitMiddleware, FalconRateLimiter
-from limiter.utils import _get_remote_address
+from limiter import FalconRateLimitMiddleware, FalconRateLimiter, get_remote_address
 
 
 def test_default_key_uses_forwarded_address() -> None:
@@ -33,7 +32,7 @@ def test_default_key_uses_forwarded_address() -> None:
 
 def test_get_remote_address_falls_back_to_remote_addr() -> None:
     req = falcon.Request(testing.create_environ(path="/", remote_addr="127.0.0.1"))
-    assert _get_remote_address(req) == "127.0.0.1"
+    assert get_remote_address(req) == "127.0.0.1"
 
 
 def test_limiter_constructor_optional_config_is_keyword_only() -> None:

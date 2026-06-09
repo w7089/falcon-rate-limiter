@@ -2,7 +2,8 @@
 .venv/
 plan/goals.md
 plan/mvp-plan.md
-*/__pycache__
+__pycache__/
+*.py[cod]
 plan
 *.egg-info/
 dist/

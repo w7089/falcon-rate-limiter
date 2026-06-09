@@ -3,7 +3,8 @@ name = "falcon-rate-limiter"
 version = "0.1.0"
 description = "Rate limiting for Falcon applications powered by limits."
 readme = "README.md"
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     { name = "w7089" },
 ]
@@ -15,7 +16,6 @@ keywords = ["falcon", "rate-limiting", "limits", "asgi", "wsgi", "redis"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
@@ -48,7 +48,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = ["limiter"]
-license-files = ["LICENSE"]
 
 [tool.setuptools.package-data]
 limiter = ["py.typed"]

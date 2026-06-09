@@ -151,12 +151,20 @@ You can customize how clients are identified:
 ```python
 import falcon
 
+from limiter import FalconRateLimiter, get_remote_address
+
 
 def client_key(req: falcon.Request) -> str:
     return req.get_header("X-Client-Id") or req.remote_addr or "global"
 
 
 limiter = FalconRateLimiter(key_func=client_key)
+```
+
+The built-in key helper is also exported when IP-based client keys are enough:
+
+```python
+limiter = FalconRateLimiter(key_func=get_remote_address)
 ```
 
 You can also override the key function for a single decorator:

@@ -85,3 +85,6 @@ jobs:
 
       - name: Sync development and e2e dependencies
         run: make install-e2e-frozen
+
+      - name: Run e2e tests
+        run: make e2e

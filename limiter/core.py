@@ -19,7 +19,7 @@ from limiter.constants import DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE, FIXED_WINDOW_
 from limiter._storage import STORAGE_BACKEND_EXCEPTIONS, StorageController
 from limiter.utils import (
     _create_rate_limit_item,
-    _get_remote_address,
+    get_remote_address,
     _normalize_methods,
 )
 
@@ -81,7 +81,7 @@ class FalconRateLimiter:
         Priority order:
             1. Per-decorator override (if provided)
             2. Global key_func from __init__ (if provided)
-            3. Default: extract client IP via ``_get_remote_address``
+            3. Default: extract client IP via ``get_remote_address``
 
         Args:
             override: Key function passed to ``@rate_limit()``, or ``None``.
@@ -93,7 +93,7 @@ class FalconRateLimiter:
             return override
         if self._key_func is not None:
             return self._key_func
-        return _get_remote_address
+        return get_remote_address
 
     @property
     def limit_undecorated_routes(self) -> bool:
