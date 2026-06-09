@@ -203,9 +203,11 @@ The library is open-source and available on PyPI:
 
 ```bash
 pip install falcon-rate-limiter
+pip install "falcon-rate-limiter[redis]"  # Redis-backed storage
 ```
 
-Redis support is included in the current alpha dependency set.
+The base install is enough for in-memory rate limiting. Install the Redis extra
+only when you need persistent or distributed counters across workers or hosts.
 
 Contributions and feedback welcome on
 [GitHub](https://github.com/w7089/falcon-rate-limiter).

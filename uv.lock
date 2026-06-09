@@ -327,6 +327,10 @@ dependencies = [
     { name = "falcon" },
     { name = "limits" },
     { name = "python-dateutil" },
+]
+
+[package.optional-dependencies]
+redis = [
     { name = "redis" },
 ]
 
@@ -336,6 +340,7 @@ dev = [
     { name = "mypy" },
     { name = "pre-commit" },
     { name = "pytest" },
+    { name = "redis" },
     { name = "ruff" },
     { name = "types-python-dateutil" },
     { name = "types-redis" },
@@ -349,8 +354,9 @@ requires-dist = [
     { name = "falcon", specifier = ">=4.0.0" },
     { name = "limits", specifier = ">=3.0.0" },
     { name = "python-dateutil", specifier = ">=2.9.0.post0" },
-    { name = "redis", specifier = ">=7.4.0" },
+    { name = "redis", marker = "extra == 'redis'", specifier = ">=7.4.0" },
 ]
+provides-extras = ["redis"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -358,6 +364,7 @@ dev = [
     { name = "mypy", specifier = ">=2.1.0" },
     { name = "pre-commit", specifier = ">=4.6.0" },
     { name = "pytest", specifier = ">=9.0.3" },
+    { name = "redis", specifier = ">=7.4.0" },
     { name = "ruff", specifier = ">=0.15.14" },
     { name = "types-python-dateutil", specifier = ">=2.9.0.20260518" },
     { name = "types-redis", specifier = ">=4.6.0.20241004" },

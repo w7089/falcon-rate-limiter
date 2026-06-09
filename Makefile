@@ -9,7 +9,7 @@ install-frozen:
 	uv sync --dev --frozen
 
 install-e2e-frozen:
-	uv sync --dev --group e2e --frozen
+	uv sync --dev --group e2e --extra redis --frozen
 
 lint:
 	uv run ruff check .

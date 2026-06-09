@@ -23,6 +23,22 @@ Current implemented features include:
 uv add falcon-rate-limiter
 ```
 
+The default install is enough for in-memory rate limiting.
+
+Install the Redis extra only when you configure Redis-backed storage for
+persistent or distributed rate limiting across workers or hosts:
+
+```bash
+uv add "falcon-rate-limiter[redis]"
+```
+
+With `pip`:
+
+```bash
+pip install falcon-rate-limiter
+pip install "falcon-rate-limiter[redis]"  # Redis-backed storage
+```
+
 ## Quick start
 
 Use `FalconRateLimiter` when you want explicit, per-route decorators.
@@ -362,9 +378,16 @@ limiter = FalconRateLimiter(storage_uri="memory://")
 
 Redis-backed rate limiting uses the same constructor:
 
+```bash
+uv add "falcon-rate-limiter[redis]"
+```
+
 ```python
 limiter = FalconRateLimiter(storage_uri="redis://localhost:6379/0")
 ```
+
+Install the Redis extra before using a `redis://` storage URI. If your app only
+uses the default in-memory storage, do not install the extra.
 
 If you already created a `limits` storage object yourself, you can still pass
 it with `storage=...`. `storage` and `storage_uri` are mutually exclusive.

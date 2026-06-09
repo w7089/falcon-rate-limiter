@@ -26,6 +26,11 @@ INVALID_LIMIT_COST_ERROR_MESSAGE = (
     "Invalid resolved limit cost value. It should be a positive integer."
 )
 INVALID_RATE_LIMIT_STRATEGY_ERROR_MESSAGE = f"Invalid rate limiting strategy. Supported strategies are: {FIXED_WINDOW_STRATEGY}, {MOVING_WINDOW_STRATEGY}, {SLIDING_WINDOW_COUNTER_STRATEGY}."
+REDIS_EXTRA_REQUIRED_MESSAGE = (
+    "Redis storage requires the optional Redis dependency. Install it with "
+    '`pip install "falcon-rate-limiter[redis]"` or '
+    '`uv add "falcon-rate-limiter[redis]"` before using a Redis storage URI.'
+)
 
 PRIMARY_STORAGE_UNAVAILABLE_MESSAGE = (
     "Primary storage is unavailable during initialization"

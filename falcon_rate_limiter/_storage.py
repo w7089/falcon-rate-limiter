@@ -5,10 +5,19 @@ from typing import cast
 from limits.errors import StorageError
 from limits.storage import MemoryStorage, Storage, storage_from_string
 from limits.strategies import RateLimiter
-from redis.exceptions import RedisError
+
+try:
+    from redis.exceptions import RedisError
+except ImportError:  # pragma: no cover - exercised only without the redis extra.
+    REDIS_AVAILABLE = False
+    REDIS_STORAGE_EXCEPTIONS: tuple[type[BaseException], ...] = ()
+else:
+    REDIS_AVAILABLE = True
+    REDIS_STORAGE_EXCEPTIONS = (RedisError,)
 
 from falcon_rate_limiter.constants import (
     IN_MEMORY_FALLBACK_LOG_MESSAGE,
+    REDIS_EXTRA_REQUIRED_MESSAGE,
     PRIMARY_STORAGE_FAILED_DURING_REQUEST_MESSAGE,
     PRIMARY_STORAGE_RECOVERED_LOG_MESSAGE,
     PRIMARY_STORAGE_STILL_UNAVAILABLE_LOG_MESSAGE,
@@ -20,9 +29,9 @@ from falcon_rate_limiter.constants import (
 )
 
 _STORAGE_LOGGER = logging.getLogger("falcon-rate-limiter")
-STORAGE_BACKEND_EXCEPTIONS = (
+STORAGE_BACKEND_EXCEPTIONS: tuple[type[BaseException], ...] = (
     StorageError,
-    RedisError,
+    *REDIS_STORAGE_EXCEPTIONS,
     ConnectionError,
     TimeoutError,
     OSError,
@@ -51,6 +60,8 @@ def _resolve_storage(
     if storage is not None:
         return storage
     if storage_uri is not None:
+        if storage_uri.startswith("redis") and not REDIS_AVAILABLE:
+            raise ImportError(REDIS_EXTRA_REQUIRED_MESSAGE)
         return cast(Storage, storage_from_string(storage_uri))
     return cast(Storage, storage_from_string("memory://"))
 
