@@ -6,14 +6,14 @@ from limits.strategies import (
 )
 import pytest
 
-from limiter._storage import StorageController
-from limiter.constants import (
+from falcon_rate_limiter._storage import StorageController
+from falcon_rate_limiter.constants import (
     FIXED_WINDOW_STRATEGY,
     INVALID_RATE_LIMIT_STRATEGY_ERROR_MESSAGE,
     MOVING_WINDOW_STRATEGY,
     SLIDING_WINDOW_COUNTER_STRATEGY,
 )
-from limiter.core import FalconRateLimiter
+from falcon_rate_limiter.core import FalconRateLimiter
 from tests.test_storage import FlakyMemoryStorage
 
 

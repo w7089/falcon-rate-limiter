@@ -6,7 +6,7 @@ import falcon
 from dateutil.relativedelta import relativedelta
 from limits.storage import Storage
 
-from limiter._helpers import (
+from falcon_rate_limiter._helpers import (
     RateLimitDefinition,
     _check_rate_limit,
     _check_rate_limit_async,
@@ -15,11 +15,14 @@ from limiter._helpers import (
     _mark_rate_limited,
     _mark_rate_limit_exempt,
 )
-from limiter.constants import DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE, FIXED_WINDOW_STRATEGY
-from limiter._storage import STORAGE_BACKEND_EXCEPTIONS, StorageController
-from limiter.utils import (
+from falcon_rate_limiter.constants import (
+    DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE,
+    FIXED_WINDOW_STRATEGY,
+)
+from falcon_rate_limiter._storage import STORAGE_BACKEND_EXCEPTIONS, StorageController
+from falcon_rate_limiter.utils import (
     _create_rate_limit_item,
-    _get_remote_address,
+    get_remote_address,
     _normalize_methods,
 )
 
@@ -35,7 +38,7 @@ class FalconRateLimiter:
         storage_uri: Storage URI resolved by ``limits`` (for example
             ``"memory://"`` or ``"redis://localhost:6379/0"``).
         strategy: Rate limiting strategy name. Use the exported strategy
-            constants from ``limiter.constants``. Defaults to
+            constants from ``falcon_rate_limiter.constants``. Defaults to
             ``FIXED_WINDOW_STRATEGY``.
         key_func: Default function to extract client identifiers from requests.
         default_requests: Default limit count for middleware (requires default_per).
@@ -81,7 +84,7 @@ class FalconRateLimiter:
         Priority order:
             1. Per-decorator override (if provided)
             2. Global key_func from __init__ (if provided)
-            3. Default: extract client IP via ``_get_remote_address``
+            3. Default: extract client IP via ``get_remote_address``
 
         Args:
             override: Key function passed to ``@rate_limit()``, or ``None``.
@@ -93,7 +96,7 @@ class FalconRateLimiter:
             return override
         if self._key_func is not None:
             return self._key_func
-        return _get_remote_address
+        return get_remote_address
 
     @property
     def limit_undecorated_routes(self) -> bool:

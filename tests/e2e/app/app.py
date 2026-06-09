@@ -10,7 +10,7 @@ import os
 import falcon
 from dateutil.relativedelta import relativedelta
 
-from limiter import FalconRateLimitMiddleware, FalconRateLimiter
+from falcon_rate_limiter import FalconRateLimitMiddleware, FalconRateLimiter
 
 limiter = FalconRateLimiter()
 redis_limiter = FalconRateLimiter(

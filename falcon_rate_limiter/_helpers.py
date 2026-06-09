@@ -8,7 +8,7 @@ from limits import RateLimitItem
 from limits.strategies import RateLimiter
 from limits.util import WindowStats
 
-from limiter.constants import INVALID_LIMIT_COST_ERROR_MESSAGE
+from falcon_rate_limiter.constants import INVALID_LIMIT_COST_ERROR_MESSAGE
 
 _RATE_LIMIT_DECORATED_ATTR = "__falcon_rate_limit_decorated__"
 _RATE_LIMIT_EXEMPT_ATTR = "__falcon_rate_limit_exempt__"

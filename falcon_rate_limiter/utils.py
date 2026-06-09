@@ -11,7 +11,7 @@ from limits import (
 )
 from typing import Sequence, cast, Iterable
 
-from limiter.constants import EMPTY_METHODS_ERROR_MESSAGE
+from falcon_rate_limiter.constants import EMPTY_METHODS_ERROR_MESSAGE
 
 
 def _create_rate_limit_item(requests: int, per: relativedelta) -> RateLimitItem:
@@ -48,7 +48,7 @@ def _create_rate_limit_item(requests: int, per: relativedelta) -> RateLimitItem:
         )
 
 
-def _get_remote_address(req: falcon.Request) -> str:
+def get_remote_address(req: falcon.Request) -> str:
     """Extract the client IP address from a Falcon request.
 
     Prefers ``access_route[0]`` (first IP in X-Forwarded-For chain) when

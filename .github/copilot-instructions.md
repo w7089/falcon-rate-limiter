@@ -46,7 +46,7 @@ This repository implements a rate limiter for the Falcon web framework, wrapping
 
 
 ### Core Components
-- **`FalconRateLimiter` (`limiter/core.py`):** The main entry point. It initializes the storage (default: in-memory) and strategy (`FixedWindowRateLimiter`).
+- **`FalconRateLimiter` (`falcon_rate_limiter/core.py`):** The main entry point. It initializes the storage (default: in-memory) and strategy (`FixedWindowRateLimiter`).
 - **Decorators:** The `rate_limit` method provides a decorator that can be applied to:
   - **Individual Responder Methods:** (e.g., `on_get`, `on_post`).
   - **Resource Classes:** Automatically decorates all methods starting with `on_` within the class.

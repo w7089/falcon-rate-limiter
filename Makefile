@@ -9,7 +9,7 @@ install-frozen:
 	uv sync --dev --frozen
 
 install-e2e-frozen:
-	uv sync --dev --group e2e --frozen
+	uv sync --dev --group e2e --extra redis --frozen
 
 lint:
 	uv run ruff check .
@@ -21,7 +21,7 @@ format:
 	uv run ruff format .
 
 type-check:
-	uv run mypy limiter
+	uv run mypy falcon_rate_limiter
 
 test:
 	uv run pytest

@@ -8,7 +8,7 @@ import falcon
 from typing import Any, cast
 from dateutil.relativedelta import relativedelta
 
-from limiter.core import FalconRateLimiter
+from falcon_rate_limiter.core import FalconRateLimiter
 
 custom_limiter = FalconRateLimiter()
 

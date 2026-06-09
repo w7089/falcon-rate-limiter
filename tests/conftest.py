@@ -3,7 +3,7 @@ from falcon.asgi import App as ASGIApp
 from falcon import App
 from falcon.testing import TestClient
 
-from limiter.core import FalconRateLimiter
+from falcon_rate_limiter.core import FalconRateLimiter
 from tests.test_app import (
     create_app,
     create_async_app,

@@ -23,6 +23,22 @@ Current implemented features include:
 uv add falcon-rate-limiter
 ```
 
+The default install is enough for in-memory rate limiting.
+
+Install the Redis extra only when you configure Redis-backed storage for
+persistent or distributed rate limiting across workers or hosts:
+
+```bash
+uv add "falcon-rate-limiter[redis]"
+```
+
+With `pip`:
+
+```bash
+pip install falcon-rate-limiter
+pip install "falcon-rate-limiter[redis]"  # Redis-backed storage
+```
+
 ## Quick start
 
 Use `FalconRateLimiter` when you want explicit, per-route decorators.
@@ -31,7 +47,7 @@ Use `FalconRateLimiter` when you want explicit, per-route decorators.
 import falcon
 from dateutil.relativedelta import relativedelta
 
-from limiter import FalconRateLimiter
+from falcon_rate_limiter import FalconRateLimiter
 
 limiter = FalconRateLimiter()
 
@@ -151,12 +167,20 @@ You can customize how clients are identified:
 ```python
 import falcon
 
+from falcon_rate_limiter import FalconRateLimiter, get_remote_address
+
 
 def client_key(req: falcon.Request) -> str:
     return req.get_header("X-Client-Id") or req.remote_addr or "global"
 
 
 limiter = FalconRateLimiter(key_func=client_key)
+```
+
+The built-in key helper is also exported when IP-based client keys are enough:
+
+```python
+limiter = FalconRateLimiter(key_func=get_remote_address)
 ```
 
 You can also override the key function for a single decorator:
@@ -354,9 +378,16 @@ limiter = FalconRateLimiter(storage_uri="memory://")
 
 Redis-backed rate limiting uses the same constructor:
 
+```bash
+uv add "falcon-rate-limiter[redis]"
+```
+
 ```python
 limiter = FalconRateLimiter(storage_uri="redis://localhost:6379/0")
 ```
+
+Install the Redis extra before using a `redis://` storage URI. If your app only
+uses the default in-memory storage, do not install the extra.
 
 If you already created a `limits` storage object yourself, you can still pass
 it with `storage=...`. `storage` and `storage_uri` are mutually exclusive.
@@ -367,7 +398,7 @@ The limiter uses the fixed-window strategy by default. You can choose a
 different `limits` strategy at construction time:
 
 ```python
-from limiter.constants import MOVING_WINDOW_STRATEGY
+from falcon_rate_limiter.constants import MOVING_WINDOW_STRATEGY
 
 limiter = FalconRateLimiter(strategy=MOVING_WINDOW_STRATEGY)
 ```
@@ -412,7 +443,7 @@ decorating every route.
 import falcon
 from dateutil.relativedelta import relativedelta
 
-from limiter import FalconRateLimiter, FalconRateLimitMiddleware
+from falcon_rate_limiter import FalconRateLimiter, FalconRateLimitMiddleware
 
 limiter = FalconRateLimiter()
 middleware = FalconRateLimitMiddleware(
@@ -443,7 +474,7 @@ them to routes that do not have their own `@rate_limit(...)` decorator.
 import falcon
 from dateutil.relativedelta import relativedelta
 
-from limiter import FalconRateLimiter, FalconRateLimitMiddleware
+from falcon_rate_limiter import FalconRateLimiter, FalconRateLimitMiddleware
 
 limiter = FalconRateLimiter(
     default_requests=10,
@@ -509,7 +540,7 @@ decorator limits and middleware-applied default limits.
 ```python
 import falcon
 
-from limiter import FalconRateLimiter
+from falcon_rate_limiter import FalconRateLimiter
 
 limiter = FalconRateLimiter()
 
@@ -596,7 +627,7 @@ operations are executed in a worker thread so the event loop is not blocked.
 ```python
 import falcon.asgi
 
-from limiter import FalconRateLimiter, FalconRateLimitMiddleware
+from falcon_rate_limiter import FalconRateLimiter, FalconRateLimitMiddleware
 
 limiter = FalconRateLimiter()
 middleware = FalconRateLimitMiddleware(

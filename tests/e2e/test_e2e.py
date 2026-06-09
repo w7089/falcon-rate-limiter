@@ -9,7 +9,7 @@ import uuid
 
 import httpx
 
-from limiter.constants import DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
+from falcon_rate_limiter.constants import DEFAULT_RATE_LIMIT_EXCEEDED_MESSAGE
 
 
 def _uid() -> str:

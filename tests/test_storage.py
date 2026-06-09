@@ -1,13 +1,17 @@
+import re
+
 import pytest
 from limits import RateLimitItemPerSecond
 from limits.errors import StorageError
 from limits.storage import MemoryStorage, storage_from_string
 
-from limiter.constants import (
+from falcon_rate_limiter import _storage
+from falcon_rate_limiter.constants import (
     PRIMARY_STORAGE_RECOVERED_LOG_MESSAGE,
     PRIMARY_STORAGE_STILL_UNAVAILABLE_LOG_MESSAGE,
+    REDIS_EXTRA_REQUIRED_MESSAGE,
 )
-from limiter._storage import StorageController
+from falcon_rate_limiter._storage import StorageController
 
 
 class FlakyMemoryStorage(MemoryStorage):
@@ -30,6 +34,15 @@ class FlakyMemoryStorage(MemoryStorage):
 def test_storage_controller_rejects_storage_and_storage_uri_together() -> None:
     with pytest.raises(ValueError, match="mutually exclusive"):
         StorageController(storage=MemoryStorage(), storage_uri="memory://")
+
+
+def test_redis_storage_uri_requires_redis_extra(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(_storage, "REDIS_AVAILABLE", False)
+
+    with pytest.raises(ImportError, match=re.escape(REDIS_EXTRA_REQUIRED_MESSAGE)):
+        StorageController(storage_uri="redis://localhost:6379/0")
 
 
 @pytest.mark.parametrize(

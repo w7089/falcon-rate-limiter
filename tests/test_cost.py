@@ -9,9 +9,9 @@ from falcon import testing
 from falcon.testing import TestClient
 import pytest
 
-from limiter import FalconRateLimitMiddleware
-from limiter.constants import INVALID_LIMIT_COST_ERROR_MESSAGE
-from limiter.core import FalconRateLimiter
+from falcon_rate_limiter import FalconRateLimitMiddleware
+from falcon_rate_limiter.constants import INVALID_LIMIT_COST_ERROR_MESSAGE
+from falcon_rate_limiter.core import FalconRateLimiter
 
 HTTP_200 = HTTPStatus.OK
 HTTP_429 = HTTPStatus.TOO_MANY_REQUESTS

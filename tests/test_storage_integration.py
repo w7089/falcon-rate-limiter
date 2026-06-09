@@ -4,8 +4,8 @@ from dateutil.relativedelta import relativedelta
 from falcon.testing import TestClient
 from http import HTTPStatus
 
-from limiter.constants import IN_MEMORY_FALLBACK_LOG_MESSAGE
-from limiter.core import FalconRateLimiter
+from falcon_rate_limiter.constants import IN_MEMORY_FALLBACK_LOG_MESSAGE
+from falcon_rate_limiter.core import FalconRateLimiter
 
 HTTP_200 = HTTPStatus.OK
 HTTP_429 = HTTPStatus.TOO_MANY_REQUESTS

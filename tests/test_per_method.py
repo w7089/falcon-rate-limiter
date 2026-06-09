@@ -4,8 +4,8 @@ from dateutil.relativedelta import relativedelta
 from falcon.testing import TestClient
 from limits.storage import MemoryStorage
 
-from limiter import FalconRateLimitMiddleware
-from limiter.core import FalconRateLimiter
+from falcon_rate_limiter import FalconRateLimitMiddleware
+from falcon_rate_limiter.core import FalconRateLimiter
 
 
 class RecordingMemoryStorage(MemoryStorage):
