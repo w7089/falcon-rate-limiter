@@ -1,4 +1,4 @@
-# Introducing falcon-rate-limiter: Production-Ready Rate Limiting for Falcon
+# Introducing falcon-rate-limiter: Practical Rate Limiting for Falcon
 
 If you're building APIs with [Falcon](https://falconframework.org/), you've probably noticed
 the ecosystem gap: there's no go-to rate-limiting library the way
@@ -32,8 +32,8 @@ app.add_route("/search", SearchResource())
 ```
 
 That's it. Clients exceeding 10 requests per minute get a `429 Too Many Requests`
-with a clear error body, and every successful response includes standard headers
-so clients know exactly where they stand:
+with a clear error body, and successful rate-limited responses include standard
+headers so clients know exactly where they stand:
 
 ```
 X-RateLimit-Limit: 10
@@ -156,37 +156,37 @@ app.add_route("/async", AsyncResource())
 The library detects the coroutine and wraps the blocking storage call in
 `asyncio.to_thread` — no configuration needed.
 
-### Configure from Environment Variables
+### Explicit Runtime Configuration
 
-Every constructor parameter has an environment variable fallback. Deploy the
-same code to dev and production with different limits:
-
-```bash
-# production.env
-RATELIMIT_STORAGE_URL=redis://redis:6379/0
-RATELIMIT_STRATEGY=moving-window
-RATELIMIT_SWALLOW_ERRORS=true
-RATELIMIT_HEADERS_ENABLED=true
-```
+Deployment choices are explicit at application startup. Pass constructor
+arguments for storage, strategy, headers, default middleware limits, and recovery
+backoff:
 
 ```python
-# No code changes needed
-limiter = FalconRateLimiter()
+import os
+
+from falcon_rate_limiter import FalconRateLimiter
+from falcon_rate_limiter.constants import MOVING_WINDOW_STRATEGY
+
+storage_uri = os.environ.get("APP_RATE_LIMIT_STORAGE_URI", "memory://")
+
+limiter = FalconRateLimiter(
+    storage_uri=storage_uri,
+    strategy=MOVING_WINDOW_STRATEGY,
+    headers_enabled=True,
+    recovery_backoff_seconds=1.0,
+    max_recovery_backoff_seconds=60.0,
+)
 ```
 
-Constructor arguments always win when provided, but unset parameters fall through
-to environment variables, then to sensible library defaults.
+If you use a `redis://` storage URI, install the Redis extra:
 
-| Variable | Type | Default |
-|---|---|---|
-| `RATELIMIT_ENABLED` | bool | `true` |
-| `RATELIMIT_STORAGE_URL` | str | `memory://` |
-| `RATELIMIT_STRATEGY` | str | `fixed-window` |
-| `RATELIMIT_HEADERS_ENABLED` | bool | `true` |
-| `RATELIMIT_SWALLOW_ERRORS` | bool | `false` |
-| `RATELIMIT_LIMIT_UNDECORATED_ROUTES` | bool | `true` |
-| `RATELIMIT_RECOVERY_BACKOFF_SECONDS` | float | `1.0` |
-| `RATELIMIT_MAX_RECOVERY_BACKOFF_SECONDS` | float | `60.0` |
+```bash
+pip install "falcon-rate-limiter[redis]"
+```
+
+Built-in `RATELIMIT_*` environment-variable loading is planned, but it is not
+part of the current public API.
 
 ## What's Next
 
@@ -199,7 +199,7 @@ This was the quick tour. In the next posts we'll dive into:
   side-by-side look at design decisions, feature parity, and where each library
   shines
 
-The library is open-source and available on PyPI:
+The project is open-source on GitHub. The PyPI install path is:
 
 ```bash
 pip install falcon-rate-limiter
