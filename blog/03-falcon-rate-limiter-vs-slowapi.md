@@ -15,7 +15,8 @@ design decisions matter for your project.
 Both libraries build on `limits`, so the core mechanics are identical:
 
 - **Storage backends**: Redis, Memcached, in-memory — all via `limits`' URI-based
-  configuration (`redis://`, `memory://`, etc.)
+  configuration (`redis://`, `memory://`, etc.). falcon-rate-limiter keeps Redis
+  as an optional extra, so Redis users install `falcon-rate-limiter[redis]`.
 - **Strategy support**: Fixed-window and moving-window strategies from `limits.strategies`
 - **Rate limit strings**: The underlying counter logic, window calculation, and
   storage protocol are the same `limits` internals
@@ -200,8 +201,7 @@ limiter = FalconRateLimiter(
    meaning.
 
 4. **Configurable backoff.** Both the initial delay and the cap are constructor
-   parameters (and environment variables). slowapi's backoff schedule is
-   hardcoded.
+   parameters. slowapi's backoff schedule is hardcoded.
 
 ### Side-by-Side
 
@@ -268,10 +268,10 @@ needs.
 | **exempt_when** | ✅ | ✅ |
 | **Response headers** | ✅ (customizable names) | ✅ (standard names) |
 | **Header name config** | ✅ Per-header env vars | ❌ Standard names only |
-| **Env var config** | ✅ (.env file via Starlette Config) | ✅ (`os.environ` direct) |
-| **swallow_errors** | ✅ | ✅ (scoped to request-time only) |
-| **enabled toggle** | ✅ | ✅ |
-| **Type safety** | Partial (type hints, mypy in CI) | Full (mypy strict, `py.typed`) |
+| **Env var config** | ✅ (.env file via Starlette Config) | ❌ Explicit constructor args only |
+| **swallow_errors** | ✅ | ❌ Planned; storage fallback exists |
+| **enabled toggle** | ✅ | ❌ Planned |
+| **Type safety** | Partial (type hints, mypy in CI) | Typed package, mypy in CI, `py.typed` |
 | **Custom error handler** | ✅ (Starlette exception handler) | Via Falcon error handlers |
 | **Retry-After header** | ✅ (http-date or seconds) | ✅ (seconds) |
 
@@ -305,7 +305,6 @@ and framework cultures.
 - You value type safety and IDE support
 - You want resilient storage fallback that recovers automatically
 - You need class-level decoration and instance-level exemptions
-- You prefer environment-variable-driven deployment configuration
 
 ## Both Are Good
 
