@@ -5,9 +5,9 @@ starts throwing 500s. Or until one bad deployment doubles your traffic and you
 realize your fixed-window strategy lets bursts through at window boundaries.
 
 falcon-rate-limiter was designed with these failure modes in mind. This post
-walks through the features that make it production-ready: storage fallback with
-recovery probing, strategy selection, weighted costs, shared buckets, and the
-developer experience that keeps the whole thing maintainable.
+walks through the features that make it practical for real APIs: storage
+fallback with recovery probing, strategy selection, weighted costs, shared
+buckets, and the developer experience that keeps the whole thing maintainable.
 
 ## Storage Resilience: Fallback and Recovery
 
@@ -21,6 +21,12 @@ that backend goes down, you have two bad options:
 
 falcon-rate-limiter takes a third path: **automatic in-memory fallback with
 recovery probing.**
+
+Redis-backed storage requires the optional Redis extra:
+
+```bash
+pip install "falcon-rate-limiter[redis]"
+```
 
 ### How It Works
 
@@ -91,26 +97,15 @@ self._fallback_limiter = self._strategy_class(self._fallback_storage)
 
 Whether you're on Redis or in-memory, the strategy stays consistent.
 
-### swallow_errors: The Last Safety Net
+### What Fallback Does Not Hide
 
-Even with fallback, edge cases can throw — a corrupt key, a connection pool
-exhausted at exactly the wrong moment. `swallow_errors` catches these at the
-enforcement boundary and logs instead of crashing:
+The fallback path is deliberately narrow. Storage backend failures can activate
+the in-memory fallback, and the request is retried against that fallback backend.
+Unexpected errors still raise instead of being silently ignored.
 
-```python
-limiter = FalconRateLimiter(
-    storage_uri="redis://redis:6379/0",
-    swallow_errors=True,
-)
-```
-
-When enabled, storage exceptions and `ValueError`s from dynamic cost functions
-are caught, logged with full tracebacks, and the request proceeds. This is a
-deliberate last resort — not a replacement for monitoring.
-
-The scope is intentional: `swallow_errors` only applies to **request-time**
-enforcement errors. Static configuration mistakes (like `cost=0`) still raise
-immediately during decorator setup, where they should.
+That means invalid configuration and invalid dynamic cost results fail loudly.
+A broader `swallow_errors` option is planned, but it is not part of the current
+public API.
 
 ## Strategy Selection
 
@@ -124,13 +119,9 @@ falcon-rate-limiter exposes all of them:
 | `sliding-window-counter` | Hybrid: weighted previous + current window | Balance of accuracy and performance |
 
 ```python
-limiter = FalconRateLimiter(strategy="moving-window")
-```
+from falcon_rate_limiter.constants import MOVING_WINDOW_STRATEGY
 
-Or via environment:
-
-```bash
-export RATELIMIT_STRATEGY=sliding-window-counter
+limiter = FalconRateLimiter(strategy=MOVING_WINDOW_STRATEGY)
 ```
 
 ### When to Use Which
@@ -257,8 +248,8 @@ Here's what falcon-rate-limiter invests in beyond the feature set.
 
 ### Type Safety Throughout
 
-The entire codebase is typed and verified with mypy in strict mode. Your IDE
-gets full autocomplete and error checking:
+The package code is typed and verified with mypy in CI. Your IDE gets useful
+autocomplete and error checking:
 
 ```python
 # mypy catches this at dev time
@@ -280,21 +271,20 @@ import logging
 logging.getLogger("falcon-rate-limiter").setLevel(logging.INFO)
 ```
 
-You'll see rate limit hits, storage transitions, recovery probes, and swallowed
-errors — all at appropriate log levels (INFO, WARNING, ERROR).
+You'll see storage failures, fallback activation, failed recovery probes, and
+successful primary-storage recovery at appropriate log levels.
 
 ### CI Pipeline
 
-The project ships with a GitHub Actions CI that runs on every PR:
+The project ships with GitHub Actions workflows for pull requests, pushes to
+`main`, and release tags:
 
 - **Lint** (ruff) — fast, opinionated Python linting
-- **Type check** (mypy) — strict type verification
-- **Unit tests** (pytest) — across Python 3.10, 3.12, and 3.14
+- **Type check** (mypy) — package type verification
+- **Unit tests** (pytest) — across Python 3.10 through 3.14
 - **Build verification** — wheel + sdist artifacts are built and checked
-- **E2E tests** — Docker Compose spins up Redis + Gunicorn and runs
-  integration tests against a real app
-
-Pre-commit hooks catch formatting and lint issues before code reaches CI.
+- **E2E tests** — Docker Compose spins up Redis + Gunicorn on `main` pushes and
+  release tags, then runs integration tests against a real app
 
 ### Makefile-Driven Workflow
 
@@ -310,26 +300,26 @@ make release-tag # create matching git tag
 
 ### Semantic Versioning and Automated Releases
 
-Pushing a `vX.Y.Z` tag triggers automatic publishing to PyPI. The publish
-workflow validates that the tag matches `pyproject.toml`'s version before
-uploading — no accidental mismatches.
+Once PyPI Trusted Publishing is configured, pushing a `vX.Y.Z` tag triggers
+publishing to PyPI. The publish workflow validates that the tag matches
+`pyproject.toml`'s version before uploading — no accidental mismatches.
 
-Dependabot keeps both PyPI dependencies and GitHub Actions versions up to date
+Dependabot keeps both Python dependencies and GitHub Actions versions up to date
 automatically.
 
 ## Putting It All Together
 
-Here's a realistic production configuration:
+Here's a realistic Redis-backed configuration:
 
 ```python
 import falcon
 from dateutil.relativedelta import relativedelta
 from falcon_rate_limiter import FalconRateLimiter, FalconRateLimitMiddleware
+from falcon_rate_limiter.constants import MOVING_WINDOW_STRATEGY
 
 limiter = FalconRateLimiter(
     storage_uri="redis://redis:6379/0",
-    strategy="moving-window",
-    swallow_errors=True,
+    strategy=MOVING_WINDOW_STRATEGY,
     recovery_backoff_seconds=2.0,
     max_recovery_backoff_seconds=30.0,
 )
@@ -378,7 +368,9 @@ This gives you:
 - A tighter 20/min limit on search
 - A shared 50/min write budget across creation endpoints
 - Health checks that are never rate-limited
-- Standard response headers on every request
-- Full operational logging
+- Standard response headers on rate-limited requests
+- Storage failure, fallback, and recovery logging
 
-All configurable via environment variables for zero-code deployment changes.
+Configuration is explicit in application startup code; if you want
+environment-driven deployment, read environment variables in your app and pass
+the resolved values to `FalconRateLimiter`.
