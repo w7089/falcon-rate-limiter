@@ -30,7 +30,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "falcon>=4.0.0",
+    "falcon>=4.3.0",
     "limits>=3.0.0",
     "python-dateutil>=2.9.0.post0",
 ]
